@@ -6,11 +6,23 @@ The initial target is the word `LOVE` as a white image on black background. The 
 
 ## Current Scope
 
+- `scripts/run_all.py` runs the current end-to-end prototype pipeline.
+- `scripts/00_autosize_config.py` analyzes the target bitmap and derives working dimensions.
 - `scripts/00_setup_scene.py` prepares the Blender scene, collections, camera, reference volume, base, table plane, and secondary light direction.
 - `scripts/01_target_to_path.py` loads `input/target_LOVE.png` and creates `AL_TARGET_IMAGE` as a visual debug reference oriented toward `AL_CAMERA_MAIN`.
-- `scripts/02_camera_projection.py` through `scripts/12_export.py` are architectural placeholders for the future solver pipeline.
+- `scripts/02_camera_projection.py` through `scripts/13_camera_evaluation.py` generate projection samples, a continuous path, orientation frames, product previews, LED previews, validation reports, and camera readability diagnostics.
 
-No Blender add-on is created yet. No final lamp mesh is created yet.
+No Blender add-on is created yet. The current geometry is a preview/prototype,
+not a final manufacturing mesh.
+
+## Current Status
+
+See `ROADMAP.md` for the working baseline and next milestones.
+
+The current prototype already produces a readable `LOVE` projection from the
+camera view, but validation still fails because the continuous physical path has
+too many self-clearance violations. The next major task is improving the
+depth/clearance solver while preserving camera readability.
 
 ## Expected Blender File
 
@@ -26,7 +38,7 @@ The scripts derive the project root from `bpy.data.filepath`, so they do not con
 
 - `LAMP_TYPE = TABLE`
 - `SECONDARY_LIGHT_DIRECTION = DOWN`
-- Maximum lamp volume: `200 x 140 x 300 mm`
-- Base reference: `130 mm` diameter, `25 mm` height
-- Camera: approximately `(0, -800, 170) mm`, looking toward `(0, 0, 150) mm`
-- Target physical width: approximately `170 mm`
+- Autosized lamp volume for the current target: approximately `450 x 350 x 370 mm`
+- Base reference: approximately `215 mm` diameter, `25 mm` height
+- Camera: approximately `(0, -1300, 190) mm`
+- Target physical width: approximately `370 mm`
