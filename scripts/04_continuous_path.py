@@ -25,6 +25,8 @@ CAMERA_Y = -1050.0
 CAMERA_Z = 175.0
 TARGET_PLANE_Y = 0.0
 MAX_SCULPTURAL_DEPTH = 96.0
+LAMP_WIDTH_MM = 320.0
+LAMP_HEIGHT_MM = 320.0
 SMOOTHING_PASSES = 3
 CHAIKIN_PASSES = 2
 PATH_MODE = "skeleton_branch_single_profile"
@@ -49,25 +51,33 @@ CENTERLINE_CONNECTOR_SAMPLES = 72
 CENTERLINE_DEPTH_LANES_MM = (-92.0, -64.0, -36.0, -12.0, 16.0, 44.0, 72.0, 96.0)
 CENTERLINE_CHAIKIN_PASSES = 5
 CENTERLINE_CONNECTOR_ESCAPE_MARGIN_MM = 60.0
+CENTERLINE_BACKSTAGE_CONNECTOR_SAMPLES = 96
+CENTERLINE_BACKSTAGE_SIDE_SWAY_MM = 90.0
+CENTERLINE_BACKSTAGE_VERTICAL_SWAY_MM = 85.0
+CENTERLINE_BACKSTAGE_DEPTH_BIAS = 0.86
+CENTERLINE_BACKSTAGE_DEPTH_SWING = 0.16
 CLOSED_LOOP_PATH = True
 DEPTH_CLEARANCE_MM = 28.0
 DEPTH_CLEARANCE_SKIP_NEIGHBORS = 70
 DEPTH_CLEARANCE_SOLVER_PASSES = 5
-POST_DEPTH_CLEARANCE_MM = 24.0
-POST_DEPTH_CLEARANCE_SOLVER_PASSES = 10
-POST_DEPTH_CLEARANCE_CYCLES = 2
-POST_DEPTH_CLEARANCE_PUSH = 0.28
-POST_DEPTH_MAX_STEP_MM = 4.0
+POST_DEPTH_CLEARANCE_MM = 28.0
+POST_DEPTH_CLEARANCE_SOLVER_PASSES = 12
+POST_DEPTH_CLEARANCE_CYCLES = 3
+POST_DEPTH_CLEARANCE_PUSH = 0.32
+POST_DEPTH_MAX_STEP_MM = 5.0
 FINAL_GEOMETRY_SMOOTHING_PASSES = 8
 FINAL_GEOMETRY_SMOOTHING_WEIGHT = 0.22
 
 
 def apply_autosize_config(project_root):
     global TARGET_WIDTH_MM, TARGET_Z_CENTER, TARGET_X_SCALE, TARGET_Z_SCALE
-    global CAMERA_Y, CAMERA_Z, MAX_SCULPTURAL_DEPTH
+    global CAMERA_Y, CAMERA_Z, MAX_SCULPTURAL_DEPTH, LAMP_WIDTH_MM, LAMP_HEIGHT_MM
     global LED_WIDTH_MM, LED_MASK_FIT_RADIUS_MM
     global CENTERLINE_MIN_STROKE_MM, CENTERLINE_MAX_STROKES, CENTERLINE_DEPTH_LANES_MM
-    global CENTERLINE_CONNECTOR_ESCAPE_MARGIN_MM, CLOSED_LOOP_PATH
+    global CENTERLINE_CONNECTOR_ESCAPE_MARGIN_MM, CENTERLINE_BACKSTAGE_CONNECTOR_SAMPLES
+    global CENTERLINE_BACKSTAGE_SIDE_SWAY_MM, CENTERLINE_BACKSTAGE_VERTICAL_SWAY_MM
+    global CENTERLINE_BACKSTAGE_DEPTH_BIAS, CENTERLINE_BACKSTAGE_DEPTH_SWING
+    global CLOSED_LOOP_PATH
 
     config = load_autosize_config(project_root)
     TARGET_WIDTH_MM = float(nested_get(config, ("target", "width_mm"), TARGET_WIDTH_MM))
@@ -79,6 +89,8 @@ def apply_autosize_config(project_root):
     MAX_SCULPTURAL_DEPTH = float(
         nested_get(config, ("lamp", "max_sculptural_depth_mm"), MAX_SCULPTURAL_DEPTH)
     )
+    LAMP_WIDTH_MM = float(nested_get(config, ("lamp", "width_mm"), LAMP_WIDTH_MM))
+    LAMP_HEIGHT_MM = float(nested_get(config, ("lamp", "height_mm"), LAMP_HEIGHT_MM))
     LED_WIDTH_MM = float(nested_get(config, ("led", "width_mm"), LED_WIDTH_MM))
     LED_MASK_FIT_RADIUS_MM = LED_WIDTH_MM * 0.5
     CENTERLINE_MIN_STROKE_MM = float(
@@ -96,6 +108,41 @@ def apply_autosize_config(project_root):
             config,
             ("planner", "connector_escape_margin_mm"),
             CENTERLINE_CONNECTOR_ESCAPE_MARGIN_MM,
+        )
+    )
+    CENTERLINE_BACKSTAGE_CONNECTOR_SAMPLES = int(
+        nested_get(
+            config,
+            ("planner", "backstage_connector_samples"),
+            CENTERLINE_BACKSTAGE_CONNECTOR_SAMPLES,
+        )
+    )
+    CENTERLINE_BACKSTAGE_SIDE_SWAY_MM = float(
+        nested_get(
+            config,
+            ("planner", "backstage_side_sway_mm"),
+            CENTERLINE_BACKSTAGE_SIDE_SWAY_MM,
+        )
+    )
+    CENTERLINE_BACKSTAGE_VERTICAL_SWAY_MM = float(
+        nested_get(
+            config,
+            ("planner", "backstage_vertical_sway_mm"),
+            CENTERLINE_BACKSTAGE_VERTICAL_SWAY_MM,
+        )
+    )
+    CENTERLINE_BACKSTAGE_DEPTH_BIAS = float(
+        nested_get(
+            config,
+            ("planner", "backstage_depth_bias"),
+            CENTERLINE_BACKSTAGE_DEPTH_BIAS,
+        )
+    )
+    CENTERLINE_BACKSTAGE_DEPTH_SWING = float(
+        nested_get(
+            config,
+            ("planner", "backstage_depth_swing"),
+            CENTERLINE_BACKSTAGE_DEPTH_SWING,
         )
     )
     CLOSED_LOOP_PATH = bool(nested_get(config, ("planner", "closed_loop"), CLOSED_LOOP_PATH))
@@ -550,6 +597,82 @@ def solve_depth_clearance(front_points, fractions, depths):
     return result
 
 
+def clamp_value(value, minimum, maximum):
+    return max(minimum, min(maximum, value))
+
+
+def catmull_value(v0, v1, v2, v3, t):
+    t2 = t * t
+    t3 = t2 * t
+    return 0.5 * (
+        2.0 * v1
+        + (-v0 + v2) * t
+        + (2.0 * v0 - 5.0 * v1 + 4.0 * v2 - v3) * t2
+        + (-v0 + 3.0 * v1 - 3.0 * v2 + v3) * t3
+    )
+
+
+def backstage_depth_value(connector_index, phase):
+    lane_offsets = (-0.24, -0.08, 0.06, 0.16)
+    base_fraction = clamp_value(
+        CENTERLINE_BACKSTAGE_DEPTH_BIAS + lane_offsets[connector_index % len(lane_offsets)],
+        0.46,
+        0.96,
+    )
+    base = MAX_SCULPTURAL_DEPTH * base_fraction
+    swing = MAX_SCULPTURAL_DEPTH * CENTERLINE_BACKSTAGE_DEPTH_SWING
+    wave = math.sin(phase * math.tau * 1.25 + connector_index * 1.73) * swing
+    return clamp_value(base + wave, MAX_SCULPTURAL_DEPTH * 0.42, MAX_SCULPTURAL_DEPTH * 0.98)
+
+
+def blend_depth_toward_backstage(endpoint_depth, backstage_depth, amount):
+    return endpoint_depth * (1.0 - amount) + backstage_depth * amount
+
+
+def sample_backstage_route(waypoints, samples):
+    if len(waypoints) < 2:
+        return []
+
+    segment_count = len(waypoints) - 1
+    samples_per_segment = max(6, int(math.ceil(samples / max(segment_count, 1))))
+    result = []
+
+    for segment_index in range(segment_count):
+        p0 = waypoints[max(0, segment_index - 1)]
+        p1 = waypoints[segment_index]
+        p2 = waypoints[segment_index + 1]
+        p3 = waypoints[min(len(waypoints) - 1, segment_index + 2)]
+        for sample_index in range(1, samples_per_segment + 1):
+            t = sample_index / samples_per_segment
+            x = catmull_value(p0[0], p1[0], p2[0], p3[0], t)
+            z = catmull_value(p0[1], p1[1], p2[1], p3[1], t)
+            depth = catmull_value(p0[2], p1[2], p2[2], p3[2], t)
+            result.append(
+                (
+                    x,
+                    z,
+                    clamp_value(depth, -MAX_SCULPTURAL_DEPTH, MAX_SCULPTURAL_DEPTH),
+                )
+            )
+
+    return result
+
+
+def clamp_target_point_to_lamp_bounds(x_target, z_target, depth):
+    denominator = TARGET_PLANE_Y - CAMERA_Y
+    factor = (depth - CAMERA_Y) / denominator if abs(denominator) > 1e-6 else 1.0
+    if factor <= 1e-6:
+        return x_target, z_target
+
+    x_limit = (LAMP_WIDTH_MM * 0.5 * 0.94) / factor
+    z_lower = CAMERA_Z + (0.0 - CAMERA_Z) / factor
+    z_upper = CAMERA_Z + (LAMP_HEIGHT_MM - CAMERA_Z) / factor
+    return (
+        clamp_value(x_target, -x_limit, x_limit),
+        clamp_value(z_target, z_lower, z_upper),
+    )
+
+
 def add_centerline_connector(
     points,
     fractions,
@@ -559,28 +682,69 @@ def add_centerline_connector(
     start_depth,
     end_depth,
     connector_index,
+    x_min,
+    x_max,
     z_min,
     z_max,
 ):
     if math.dist(start, end) < 1e-6:
         return
-    # Hidden connectors must not cross the readable logo in front projection.
-    # Route them outside the target silhouette, then use depth lanes for the
-    # sculptural rear motion.
+    # Hidden connectors are the lamp's backstage movement. They leave the
+    # readable mask, travel deep behind it, and re-enter softly at the next
+    # letter stroke instead of taking the shortest possible bridge.
     escape_margin = CENTERLINE_CONNECTOR_ESCAPE_MARGIN_MM
-    escape_z = z_max + escape_margin if connector_index % 2 == 0 else z_min - escape_margin
-    horizontal_sway = (MAX_SCULPTURAL_DEPTH * 0.25) * (-1.0 if connector_index % 2 else 1.0)
-    p1 = (start[0] + horizontal_sway, escape_z)
-    p2 = (end[0] - horizontal_sway, escape_z)
-    connector_points = cubic_bezier(start, p1, p2, end, CENTERLINE_CONNECTOR_SAMPLES)
-    for index, point in enumerate(connector_points):
-        t = (index + 1) / max(len(connector_points), 1)
-        sculptural_bulge = math.sin(t * math.pi) * MAX_SCULPTURAL_DEPTH * 0.22
-        if connector_index % 2:
-            sculptural_bulge *= -1.0
-        points.append(point)
+    vertical_sign = 1.0 if connector_index % 2 == 0 else -1.0
+    side_sign = 1.0 if connector_index % 4 in (0, 3) else -1.0
+    front_width = max(x_max - x_min, 1.0)
+    side_sway = max(CENTERLINE_BACKSTAGE_SIDE_SWAY_MM, front_width * 0.16)
+    entry_sway = side_sign * min(side_sway * 0.62, front_width * 0.56)
+    side_x = x_max + side_sway if side_sign > 0.0 else x_min - side_sway
+    cross_x = x_min - side_sway * 0.38 if side_sign > 0.0 else x_max + side_sway * 0.38
+    edge_z = z_max + escape_margin if vertical_sign > 0.0 else z_min - escape_margin
+    shoulder_z = z_max + escape_margin * 0.48 if vertical_sign > 0.0 else z_min - escape_margin * 0.48
+    outer_z = edge_z + vertical_sign * CENTERLINE_BACKSTAGE_VERTICAL_SWAY_MM
+    inner_z = edge_z + vertical_sign * CENTERLINE_BACKSTAGE_VERTICAL_SWAY_MM * 0.34
+
+    backstage_1 = backstage_depth_value(connector_index, 0.20)
+    backstage_2 = backstage_depth_value(connector_index, 0.48)
+    backstage_3 = backstage_depth_value(connector_index, 0.76)
+    route_style = connector_index % 3
+
+    if route_style == 0:
+        waypoints = [
+            (start[0], start[1], start_depth),
+            (start[0] + entry_sway, shoulder_z, blend_depth_toward_backstage(start_depth, backstage_1, 0.54)),
+            (side_x, outer_z, backstage_1),
+            (side_x, inner_z, backstage_2),
+            (end[0] - entry_sway * 0.72, shoulder_z, blend_depth_toward_backstage(end_depth, backstage_3, 0.62)),
+            (end[0], end[1], end_depth),
+        ]
+    elif route_style == 1:
+        waypoints = [
+            (start[0], start[1], start_depth),
+            (start[0] + entry_sway * 0.55, shoulder_z, blend_depth_toward_backstage(start_depth, backstage_1, 0.48)),
+            (side_x, outer_z, backstage_1),
+            (cross_x, outer_z, backstage_2),
+            (end[0] - entry_sway * 0.45, shoulder_z, blend_depth_toward_backstage(end_depth, backstage_3, 0.58)),
+            (end[0], end[1], end_depth),
+        ]
+    else:
+        waypoints = [
+            (start[0], start[1], start_depth),
+            (start[0] + entry_sway * 0.44, shoulder_z, blend_depth_toward_backstage(start_depth, backstage_1, 0.44)),
+            (cross_x, inner_z, backstage_1),
+            (side_x, outer_z, backstage_2),
+            (side_x * 0.72 + end[0] * 0.28, inner_z, backstage_3),
+            (end[0] - entry_sway * 0.40, shoulder_z, blend_depth_toward_backstage(end_depth, backstage_3, 0.52)),
+            (end[0], end[1], end_depth),
+        ]
+
+    connector_points = sample_backstage_route(waypoints, CENTERLINE_BACKSTAGE_CONNECTOR_SAMPLES)
+    for x, z, depth in connector_points:
+        x, z = clamp_target_point_to_lamp_bounds(x, z, depth)
+        points.append((x, z))
         fractions.append(0.0)
-        depths.append(start_depth * (1.0 - t) + end_depth * t + sculptural_bulge)
+        depths.append(depth)
 
 
 def centerline_path_to_front_mm(binary, width, height, factor, components, graph):
@@ -588,7 +752,7 @@ def centerline_path_to_front_mm(binary, width, height, factor, components, graph
     component_strokes = [stroke for stroke in component_strokes if len(stroke) >= CENTERLINE_MIN_STROKE_PX]
     raw_strokes = component_strokes or skeleton_component_strokes(components, graph)
     strokes = order_centerline_strokes(raw_strokes, width, height, factor)
-    _x_min, _x_max, z_min, z_max = white_bounds_front_mm(binary, width, height)
+    x_min, x_max, z_min, z_max = white_bounds_front_mm(binary, width, height)
     points = []
     fractions = []
     depths = []
@@ -606,6 +770,8 @@ def centerline_path_to_front_mm(binary, width, height, factor, components, graph
                 depths[-1],
                 lane_depth,
                 index,
+                x_min,
+                x_max,
                 z_min,
                 z_max,
             )
@@ -629,6 +795,8 @@ def centerline_path_to_front_mm(binary, width, height, factor, components, graph
             depths[-1],
             depths[0],
             len(strokes),
+            x_min,
+            x_max,
             z_min,
             z_max,
         )
@@ -1451,6 +1619,47 @@ def path_length(points):
     return sum((points[index] - points[index - 1]).length for index in range(1, len(points)))
 
 
+def backstage_profile_stats(points, projection_targets, mask_fit_fractions):
+    if len(points) < 2:
+        return {
+            "backstage_nodes": 0,
+            "backstage_weighted_length_mm": 0.0,
+            "readable_weighted_length_mm": 0.0,
+            "backstage_depth_span_mm": 0.0,
+            "backstage_depth_mean_mm": 0.0,
+        }
+
+    backstage_length = 0.0
+    readable_length = 0.0
+    backstage_depths = []
+    for index, fit in enumerate(mask_fit_fractions):
+        if fit < LED_MASK_FIT_MIN_FRACTION and index < len(projection_targets):
+            backstage_depths.append(projection_targets[index][2])
+
+    for index in range(1, len(points)):
+        segment_length = (points[index] - points[index - 1]).length
+        fit = (mask_fit_fractions[index] + mask_fit_fractions[index - 1]) * 0.5
+        readable_weight = clamp_value(fit / max(LED_MASK_FIT_MIN_FRACTION, 1e-6), 0.0, 1.0)
+        hidden_weight = 1.0 - readable_weight
+        backstage_length += segment_length * hidden_weight
+        readable_length += segment_length * readable_weight
+
+    if backstage_depths:
+        depth_span = max(backstage_depths) - min(backstage_depths)
+        depth_mean = sum(backstage_depths) / len(backstage_depths)
+    else:
+        depth_span = 0.0
+        depth_mean = 0.0
+
+    return {
+        "backstage_nodes": len(backstage_depths),
+        "backstage_weighted_length_mm": backstage_length,
+        "readable_weighted_length_mm": readable_length,
+        "backstage_depth_span_mm": depth_span,
+        "backstage_depth_mean_mm": depth_mean,
+    }
+
+
 def write_path_json(project_root, image_path, points, projection_targets, led_flags, mask_fit_fractions, stats):
     output_path = project_root / "output" / "debug" / OUTPUT_JSON_NAME
     total_length = path_length(points)
@@ -1587,6 +1796,7 @@ def main():
         front_points, segment_lit_flags, depth_values
     )
     create_curve_object(points, debug_collection)
+    backstage_stats = backstage_profile_stats(points, projection_targets, mask_fit_fractions)
     stats = {
         "path_mode": PATH_MODE,
         "image_px": [width, height],
@@ -1613,6 +1823,12 @@ def main():
         "depth_strategy": "ordered_centerline_lanes" if depth_values is not None else "procedural_wave",
         "centerline_depth_lanes_mm": list(CENTERLINE_DEPTH_LANES_MM),
         "centerline_connector_escape_margin_mm": CENTERLINE_CONNECTOR_ESCAPE_MARGIN_MM,
+        "backstage_route_model": "multi_waypoint rear sculptural connectors",
+        "backstage_connector_samples": CENTERLINE_BACKSTAGE_CONNECTOR_SAMPLES,
+        "backstage_side_sway_mm": CENTERLINE_BACKSTAGE_SIDE_SWAY_MM,
+        "backstage_vertical_sway_mm": CENTERLINE_BACKSTAGE_VERTICAL_SWAY_MM,
+        "backstage_depth_bias": CENTERLINE_BACKSTAGE_DEPTH_BIAS,
+        "backstage_depth_swing": CENTERLINE_BACKSTAGE_DEPTH_SWING,
         "centerline_chaikin_passes": CENTERLINE_CHAIKIN_PASSES,
         "post_depth_clearance_mm": POST_DEPTH_CLEARANCE_MM,
         "post_depth_clearance_passes": POST_DEPTH_CLEARANCE_SOLVER_PASSES,
@@ -1624,6 +1840,7 @@ def main():
         "chaikin_passes": CHAIKIN_PASSES,
         "front_points": len(front_points),
     }
+    stats.update(backstage_stats)
     output_path = write_path_json(
         project_root, image_path, points, projection_targets, led_flags, mask_fit_fractions, stats
     )

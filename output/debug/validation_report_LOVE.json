@@ -1,184 +1,239 @@
 {
   "source": "ANAMORPHIC_LAMP scripts/09_validation.py",
   "passed": false,
-  "point_count": 1501,
+  "point_count": 2748,
   "out_of_bounds_count": 0,
   "clearance_passed": false,
   "self_clearance": {
-    "min_nonlocal_distance_mm": 1.4315512981884198,
-    "clearance_violation_count": 550,
+    "min_nonlocal_distance_mm": 1.790885232330532,
+    "clearance_violation_count": 517,
     "clearance_threshold_mm": 20.0,
     "clearance_hotspots": [
       {
         "range_a": [
-          200,
-          299
+          1500,
+          1599
         ],
         "range_b": [
-          500,
-          599
+          1700,
+          1799
         ],
-        "violation_count": 267
+        "violation_count": 127
       },
       {
         "range_a": [
-          700,
-          799
+          1600,
+          1699
         ],
         "range_b": [
-          800,
-          899
+          1700,
+          1799
         ],
-        "violation_count": 261
+        "violation_count": 113
       },
       {
         "range_a": [
-          700,
-          799
+          2100,
+          2199
+        ],
+        "range_b": [
+          2200,
+          2299
+        ],
+        "violation_count": 80
+      },
+      {
+        "range_a": [
+          600,
+          699
         ],
         "range_b": [
           900,
           999
         ],
-        "violation_count": 22
+        "violation_count": 67
+      },
+      {
+        "range_a": [
+          600,
+          699
+        ],
+        "range_b": [
+          2700,
+          2747
+        ],
+        "violation_count": 59
+      },
+      {
+        "range_a": [
+          700,
+          799
+        ],
+        "range_b": [
+          2700,
+          2747
+        ],
+        "violation_count": 48
+      },
+      {
+        "range_a": [
+          1700,
+          1799
+        ],
+        "range_b": [
+          2200,
+          2299
+        ],
+        "violation_count": 19
+      },
+      {
+        "range_a": [
+          0,
+          99
+        ],
+        "range_b": [
+          2700,
+          2747
+        ],
+        "violation_count": 4
       }
     ],
     "closest_conflicts": [
       {
-        "distance_mm": 1.4315512981884198,
+        "distance_mm": 1.790885232330532,
         "segment_a": [
-          748,
-          749
+          1592,
+          1593
         ],
         "segment_b": [
-          881,
-          882
+          1726,
+          1727
         ]
       },
       {
-        "distance_mm": 1.4748038271089514,
+        "distance_mm": 1.9790168938727095,
         "segment_a": [
-          747,
-          748
+          1593,
+          1594
         ],
         "segment_b": [
-          881,
-          882
+          1726,
+          1727
         ]
       },
       {
-        "distance_mm": 1.541257752227314,
+        "distance_mm": 2.0238486115361733,
         "segment_a": [
-          747,
-          748
+          1592,
+          1593
         ],
         "segment_b": [
-          882,
-          883
+          1727,
+          1728
         ]
       },
       {
-        "distance_mm": 1.5446031195784162,
+        "distance_mm": 2.496651934803925,
         "segment_a": [
-          748,
-          749
+          1591,
+          1592
         ],
         "segment_b": [
-          882,
-          883
+          1727,
+          1728
         ]
       },
       {
-        "distance_mm": 2.2408262633267344,
+        "distance_mm": 2.633936690117098,
         "segment_a": [
-          749,
-          750
+          1593,
+          1594
         ],
         "segment_b": [
-          881,
-          882
+          1725,
+          1726
         ]
       },
       {
-        "distance_mm": 3.0676423903903007,
+        "distance_mm": 2.691920902559641,
         "segment_a": [
-          748,
-          749
+          1591,
+          1592
         ],
         "segment_b": [
-          880,
-          881
+          1726,
+          1727
         ]
       },
       {
-        "distance_mm": 3.0676436922077372,
+        "distance_mm": 2.911097657184314,
         "segment_a": [
-          749,
-          750
+          1592,
+          1593
         ],
         "segment_b": [
-          880,
-          881
+          1725,
+          1726
         ]
       },
       {
-        "distance_mm": 3.1173065707762215,
+        "distance_mm": 3.646644331330749,
         "segment_a": [
-          749,
-          750
+          1594,
+          1595
         ],
         "segment_b": [
-          882,
-          883
+          1725,
+          1726
         ]
       },
       {
-        "distance_mm": 3.120273771222358,
+        "distance_mm": 3.695944161493361,
         "segment_a": [
-          746,
-          747
+          1593,
+          1594
         ],
         "segment_b": [
-          882,
-          883
+          1727,
+          1728
         ]
       },
       {
-        "distance_mm": 3.6718678575811516,
+        "distance_mm": 3.810408096484597,
         "segment_a": [
-          750,
-          751
+          1594,
+          1595
         ],
         "segment_b": [
-          881,
-          882
+          1726,
+          1727
         ]
       },
       {
-        "distance_mm": 3.7192119862514748,
+        "distance_mm": 4.113503382192227,
         "segment_a": [
-          747,
-          748
+          1591,
+          1592
         ],
         "segment_b": [
-          883,
-          884
+          1728,
+          1729
         ]
       },
       {
-        "distance_mm": 3.7347132386720006,
+        "distance_mm": 4.749534664528058,
         "segment_a": [
-          746,
-          747
+          1590,
+          1591
         ],
         "segment_b": [
-          883,
-          884
+          1728,
+          1729
         ]
       }
     ]
   },
-  "max_segment_length_mm": 4.275376439670052,
-  "path_length_mm": 2645.6283308539405,
+  "max_segment_length_mm": 5.532663132494309,
+  "path_length_mm": 6921.649344515511,
   "optimizer_quality_score_0_1": 0.0
 }

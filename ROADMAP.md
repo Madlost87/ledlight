@@ -147,19 +147,80 @@ Rejected alternative:
   `0.352`, path length `6540.51 mm`, and `43873` clearance violations. It is
   not a good direction for this lamp.
 
+### Backstage Sculptural Pass
+
+The design direction shifted from "one ribbon drawing the word" toward "one
+sculptural lamp profile whose hidden rear movements reveal the word only from
+the privileged camera." Connectors between readable strokes now become
+multi-waypoint backstage routes instead of short bridges.
+
+Implemented changes:
+
+- Increased autosized lamp width/height to `610 x 430 mm` while keeping depth
+  at `650 mm`.
+- Raised the target center to create safer top/bottom re-entry room.
+- Replaced simple cubic stroke connectors with multi-waypoint rear routes that
+  leave the target mask, travel behind it, and re-enter the next readable
+  stroke.
+- Added backstage connector controls for side sway, vertical sway, depth bias,
+  depth swing, and connector samples.
+- Added camera-ray-aware clamping so hidden route points stay inside the lamp
+  volume after projection.
+- Spread backstage routes across multiple rear depth lanes before the clearance
+  solver, reducing hidden-route clustering.
+- Added backstage length/depth stats to `continuous_path_LOVE.json`.
+
+Current generated metrics:
+
+- Path points: `2748`
+- Path length: `6921.65 mm`
+- Backstage weighted length: `5253.47 mm`
+- Readable weighted length: `1668.18 mm`
+- Backstage nodes: `2028`
+- Backstage depth span: `525.53 mm`
+- Camera visual score: `0.827`
+- Camera coverage: `0.890`
+- Camera precision: `0.896`
+- Camera IoU: `0.807`
+- Out of bounds points: `0`
+- Clearance violations: `517`
+- Minimum non-local clearance: `1.791 mm`
+- Maximum segment length: `5.53 mm`
+- P95 twist: `8.67 deg`
+- P95 curvature: `0.074 1/mm`
+- Validation passed: `False`
+
+Current top clearance hotspots:
+
+- `1500-1599` vs `1700-1799`: `127` violations
+- `1600-1699` vs `1700-1799`: `113` violations
+- `2100-2199` vs `2200-2299`: `80` violations
+- `600-699` vs `900-999`: `67` violations
+- `600-699` vs `2700-2747`: `59` violations
+
+This pass is technically useful but visually rejected after side-view
+inspection. It keeps readability and volume under control, but it still reads
+as a few large clean arcs, not as an intentional rear tangle. The next design
+step is a compact `tangle_cloud` connector mode: fewer elegant perimeter arcs,
+more dense looped rear motion behind the readable target.
+
 ## Work Plan
 
 1. Stabilize the project baseline and documentation.
-2. Reduce self-clearance violations in the 3D path while preserving the camera
+2. Replace the current backstage connector arcs with a compact rear tangle
+   cloud that looks sculptural from non-camera views.
+3. Make the target image/name fully configurable so future images do not
+   require manual script edits.
+4. Reduce self-clearance violations in the 3D path while preserving the camera
    projection.
-3. Turn `scripts/08_optimizer.py` from pass-through scoring into a real
+5. Turn `scripts/08_optimizer.py` from pass-through scoring into a real
    optimization step that adjusts depth and transitions.
-4. Improve transition smoothness and minimum bend radius so the swept profile is
+6. Improve transition smoothness and minimum bend radius so the swept profile is
    physically plausible.
-5. Regenerate the Blender preview and exports after each solver change.
-6. Keep camera readability above an agreed threshold while improving
+7. Regenerate the Blender preview and exports after each solver change.
+8. Keep camera readability above an agreed threshold while improving
    manufacturability.
-7. Produce a final manufacturing mesh/export once validation passes.
+9. Produce a final manufacturing mesh/export once validation passes.
 
 ## Acceptance Targets
 

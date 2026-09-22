@@ -3,8 +3,8 @@
   "input_projection_data": "/home/denny/ANAMORPHIC_LAMP/output/debug/camera_projection_LOVE.json",
   "lamp_bounds_mm": {
     "x": [
-      -217.0,
-      217.0
+      -297.0,
+      297.0
     ],
     "y": [
       -317.0,
@@ -12,7 +12,7 @@
     ],
     "z": [
       8.0,
-      362.0
+      422.0
     ]
   },
   "volume_margin_mm": 8.0,

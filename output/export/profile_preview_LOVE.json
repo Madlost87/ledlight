@@ -4,7 +4,7 @@
   "profile_width_mm": 15.0,
   "profile_height_mm": 8.0,
   "profile_shape": "rectangular_swept_mesh",
-  "closed_loop": true,
+  "closed_loop": false,
   "object": "AL_PROFILE_PREVIEW",
   "base_object": "AL_BASE_SOLID",
   "final_mesh_created": false

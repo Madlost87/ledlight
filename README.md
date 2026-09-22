@@ -24,6 +24,25 @@ camera view, but validation still fails because the continuous physical path has
 too many self-clearance violations. The next major task is improving the
 depth/clearance solver while preserving camera readability.
 
+## Changing The Target Image
+
+The current pipeline is partially automatic:
+
+- If you replace the contents of `input/target_LOVE.png` with another
+  white-on-black target image, the autosize and path scripts will analyze the
+  new bitmap and regenerate the lamp dimensions, target scale, projection,
+  centerline, depth lanes, LED visibility mask, validation, and exports.
+- The image should remain a high-contrast white subject on a black background.
+  Thin details, disconnected islands, and very dense shapes will strongly affect
+  the generated path.
+- The system is not fully target-agnostic yet: many script constants and output
+  files still use the `LOVE` name, and some debug object labels still mention
+  LOVE. So changing the filename itself is not automatic yet.
+- Artistic behavior should be parameterized, not manually recalibrated per
+  image. The planned next step is to move the target name and style controls
+  into one shared config so a future image can be swapped without hunting
+  through every script.
+
 ## Expected Blender File
 
 Save the Blender file manually as:
@@ -38,7 +57,7 @@ The scripts derive the project root from `bpy.data.filepath`, so they do not con
 
 - `LAMP_TYPE = TABLE`
 - `SECONDARY_LIGHT_DIRECTION = DOWN`
-- Autosized lamp volume for the current target: approximately `450 x 350 x 370 mm`
-- Base reference: approximately `215 mm` diameter, `25 mm` height
+- Autosized lamp volume for the current target: approximately `610 x 650 x 430 mm`
+- Base reference: approximately `295 mm` diameter, `25 mm` height
 - Camera: approximately `(0, -1300, 190) mm`
 - Target physical width: approximately `370 mm`

@@ -24,15 +24,15 @@
   "target": {
     "width_mm": 370.0,
     "height_mm": 185.0,
-    "z_center_mm": 190.0,
+    "z_center_mm": 210.0,
     "x_scale": 0.96,
     "z_scale": 0.96
   },
   "lamp": {
-    "width_mm": 450.0,
+    "width_mm": 610.0,
     "depth_mm": 650.0,
-    "height_mm": 370.0,
-    "base_diameter_mm": 215.0,
+    "height_mm": 430.0,
+    "base_diameter_mm": 295.0,
     "base_height_mm": 25.0,
     "profile_width_mm": 15.0,
     "profile_height_mm": 8.0,
@@ -57,7 +57,12 @@
     "centerline_max_strokes": 9,
     "min_bend_radius_mm": 120.0,
     "twist_length_for_90_deg_mm": 320.0,
-    "connector_escape_margin_mm": 120.0,
+    "connector_escape_margin_mm": 80.0,
+    "backstage_connector_samples": 96,
+    "backstage_side_sway_mm": 75.0,
+    "backstage_vertical_sway_mm": 45.0,
+    "backstage_depth_bias": 0.82,
+    "backstage_depth_swing": 0.14,
     "closed_loop": true
   }
 }

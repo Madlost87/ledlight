@@ -120,13 +120,13 @@ def autosize(analysis):
     target_width = max(340.0, min(460.0, round(target_width / 10.0) * 10.0))
     target_height = target_width * aspect
 
-    lamp_width = round(max(target_width * 1.22, target_width + 70.0) / 10.0) * 10.0
+    lamp_width = round(max(target_width * 1.65, target_width + 180.0) / 10.0) * 10.0
     lamp_depth = round(max(target_width * 1.75, 640.0) / 10.0) * 10.0
-    lamp_height = round(max(target_height + 185.0, 330.0) / 10.0) * 10.0
+    lamp_height = round(max(target_height + 245.0, 430.0) / 10.0) * 10.0
     base_diameter = round(max(165.0, lamp_width * 0.48) / 5.0) * 5.0
     camera_distance = round(max(950.0, target_width * 3.5) / 10.0) * 10.0
     camera_height = round((target_height * 0.5 + 95.0) / 5.0) * 5.0
-    target_z_center = round((25.0 + target_height * 0.5 + 70.0) / 5.0) * 5.0
+    target_z_center = round((35.0 + target_height * 0.5 + 85.0) / 5.0) * 5.0
 
     depth_max = min(lamp_depth * 0.46, 300.0)
     lanes = [-1.0, -0.72, -0.46, -0.20, 0.08, 0.36, 0.68, 1.0]
@@ -168,7 +168,12 @@ def autosize(analysis):
             "centerline_max_strokes": 9,
             "min_bend_radius_mm": 120.0,
             "twist_length_for_90_deg_mm": 320.0,
-            "connector_escape_margin_mm": 120.0,
+            "connector_escape_margin_mm": 80.0,
+            "backstage_connector_samples": 96,
+            "backstage_side_sway_mm": round(max(target_width * 0.20, 70.0) / 5.0) * 5.0,
+            "backstage_vertical_sway_mm": round(max(target_height * 0.24, 45.0) / 5.0) * 5.0,
+            "backstage_depth_bias": 0.82,
+            "backstage_depth_swing": 0.14,
             "closed_loop": True,
         },
     }
