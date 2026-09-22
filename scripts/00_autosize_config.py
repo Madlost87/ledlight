@@ -121,15 +121,15 @@ def autosize(analysis):
     target_height = target_width * aspect
 
     lamp_width = round(max(target_width * 1.22, target_width + 70.0) / 10.0) * 10.0
-    lamp_depth = round(max(target_width * 0.95, 300.0) / 10.0) * 10.0
+    lamp_depth = round(max(target_width * 1.75, 640.0) / 10.0) * 10.0
     lamp_height = round(max(target_height + 185.0, 330.0) / 10.0) * 10.0
     base_diameter = round(max(165.0, lamp_width * 0.48) / 5.0) * 5.0
     camera_distance = round(max(950.0, target_width * 3.5) / 10.0) * 10.0
     camera_height = round((target_height * 0.5 + 95.0) / 5.0) * 5.0
     target_z_center = round((25.0 + target_height * 0.5 + 70.0) / 5.0) * 5.0
 
-    depth_max = min(lamp_depth * 0.46, 155.0)
-    lanes = [-0.96, -0.67, -0.38, -0.12, 0.16, 0.46, 0.75, 1.0]
+    depth_max = min(lamp_depth * 0.46, 300.0)
+    lanes = [-1.0, -0.72, -0.46, -0.20, 0.08, 0.36, 0.68, 1.0]
     depth_lanes = [round(depth_max * lane, 1) for lane in lanes]
 
     return {
@@ -166,9 +166,9 @@ def autosize(analysis):
         "planner": {
             "centerline_min_stroke_mm": max(20.0, LED_WIDTH_MM * 2.0),
             "centerline_max_strokes": 9,
-            "min_bend_radius_mm": 60.0,
-            "twist_length_for_90_deg_mm": 150.0,
-            "connector_escape_margin_mm": 60.0,
+            "min_bend_radius_mm": 120.0,
+            "twist_length_for_90_deg_mm": 320.0,
+            "connector_escape_margin_mm": 120.0,
             "closed_loop": True,
         },
     }

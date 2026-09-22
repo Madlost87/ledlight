@@ -1,9 +1,9 @@
 ANAMORPHIC_LAMP camera evaluation
-visual_score: 0.794
-coverage: 0.873
-precision: 0.868
-overdraw: 0.132
-missing: 0.127
-iou: 0.771
+visual_score: 0.836
+coverage: 0.900
+precision: 0.896
+overdraw: 0.104
+missing: 0.100
+iou: 0.815
 led_mask: /home/denny/ANAMORPHIC_LAMP/output/debug/camera_eval_led_mask.png
 error_map: /home/denny/ANAMORPHIC_LAMP/output/debug/camera_eval_error_map.png

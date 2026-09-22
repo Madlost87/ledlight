@@ -163,6 +163,9 @@ def read_led_frames(project_root):
                 )
                 if index < len(path_nodes)
                 else True,
+                "mask_fit_fraction": float(path_nodes[index].get("mask_fit_fraction", 1.0))
+                if index < len(path_nodes)
+                else 1.0,
             }
         )
     return frames
@@ -341,30 +344,38 @@ def arc_lengths(frames):
     return lengths
 
 
+def smoothstep(value):
+    value = max(0.0, min(1.0, value))
+    return value * value * (3.0 - 2.0 * value)
+
+
 def frontness_profile(frames, transition_mm):
     lengths = arc_lengths(frames)
-    lit_indices = [index for index, frame in enumerate(frames) if frame["front_facing"]]
-    if not lit_indices:
-        return [0.0 for _ in frames], lengths
+    if not frames:
+        return [], lengths
 
-    values = []
-    lit_cursor = 0
+    raw_values = []
+    for frame in frames:
+        fraction = float(frame.get("mask_fit_fraction", 1.0 if frame["front_facing"] else 0.0))
+        # A broad ramp keeps the physical LED face from snapping when the
+        # projected path grazes the target mask edge.
+        raw_values.append(smoothstep((fraction - 0.12) / 0.76))
+
+    smoothing_radius = max(transition_mm * 0.45, 1.0)
+    smoothed = []
     for index, length in enumerate(lengths):
-        while lit_cursor + 1 < len(lit_indices) and lengths[lit_indices[lit_cursor + 1]] < length:
-            lit_cursor += 1
+        weighted_sum = 0.0
+        total_weight = 0.0
+        for other_index, other_length in enumerate(lengths):
+            distance = abs(other_length - length)
+            if distance > smoothing_radius:
+                continue
+            weight = 1.0 - distance / smoothing_radius
+            weighted_sum += raw_values[other_index] * weight
+            total_weight += weight
+        smoothed.append(weighted_sum / total_weight if total_weight else raw_values[index])
 
-        candidate_distances = [abs(length - lengths[lit_indices[lit_cursor]])]
-        if lit_cursor + 1 < len(lit_indices):
-            candidate_distances.append(abs(length - lengths[lit_indices[lit_cursor + 1]]))
-        nearest = min(candidate_distances)
-
-        if frames[index]["front_facing"]:
-            values.append(1.0)
-        else:
-            # Smoothstep ramp: 0 at/after transition_mm, 1 next to a lit region.
-            t = max(0.0, min(1.0, 1.0 - nearest / transition_mm))
-            values.append(t * t * (3.0 - 2.0 * t))
-    return values, lengths
+    return smoothed, lengths
 
 
 def safe_normalized(vector, fallback):
@@ -435,7 +446,9 @@ def create_continuous_led_ribbon(name, frames, led_width, led_offset, led_materi
     obj["twist_transition_mm"] = LED_TWIST_TRANSITION_MM
     obj["closed_loop"] = closed_loop
     get_geometry_collection().objects.link(obj)
-    return obj, sum(1 for frame in mesh_frames if frame["front_facing"]), lengths[-1] if lengths else 0.0
+    lit_equivalent = sum(1 for value in frontness_values if value >= 0.5)
+    obj["frontness_model"] = "continuous mask-fit smoothing"
+    return obj, lit_equivalent, lengths[-1] if lengths else 0.0
 
 
 def main():
@@ -466,6 +479,7 @@ def main():
         "continuous_led_profile": True,
         "closed_loop": bool(led.get("closed_loop")),
         "front_facing_nodes": lit_nodes,
+        "frontness_model": "continuous mask-fit smoothing",
         "led_power_model": "always_on",
         "front_facing_rule": "The LED is always on; it becomes visible from camera where the profile twists its luminous face toward the target mask.",
         "camera_readable_object": READABLE_OBJECT,

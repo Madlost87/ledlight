@@ -18,7 +18,7 @@ TARGET_WIDTH_MM = 260.0
 TARGET_Z_CENTER = 160.0
 TARGET_X_SCALE = 0.96
 TARGET_Z_SCALE = 0.96
-RESAMPLE_STEP_MM = 1.2
+RESAMPLE_STEP_MM = 1.6
 SIMPLIFY_EPSILON_MM = 1.4
 CURVE_BEVEL_DEPTH = 0.9
 CAMERA_Y = -1050.0
@@ -47,12 +47,19 @@ CENTERLINE_MIN_STROKE_MM = 20.0
 CENTERLINE_MAX_STROKES = 9
 CENTERLINE_CONNECTOR_SAMPLES = 72
 CENTERLINE_DEPTH_LANES_MM = (-92.0, -64.0, -36.0, -12.0, 16.0, 44.0, 72.0, 96.0)
-CENTERLINE_CHAIKIN_PASSES = 3
+CENTERLINE_CHAIKIN_PASSES = 5
 CENTERLINE_CONNECTOR_ESCAPE_MARGIN_MM = 60.0
 CLOSED_LOOP_PATH = True
 DEPTH_CLEARANCE_MM = 28.0
 DEPTH_CLEARANCE_SKIP_NEIGHBORS = 70
 DEPTH_CLEARANCE_SOLVER_PASSES = 5
+POST_DEPTH_CLEARANCE_MM = 24.0
+POST_DEPTH_CLEARANCE_SOLVER_PASSES = 10
+POST_DEPTH_CLEARANCE_CYCLES = 2
+POST_DEPTH_CLEARANCE_PUSH = 0.28
+POST_DEPTH_MAX_STEP_MM = 4.0
+FINAL_GEOMETRY_SMOOTHING_PASSES = 8
+FINAL_GEOMETRY_SMOOTHING_WEIGHT = 0.22
 
 
 def apply_autosize_config(project_root):
@@ -1274,6 +1281,122 @@ def project_target_point_to_depth(x_target, z_target, y_depth):
     return Vector((x_world, y_depth, z_world))
 
 
+def solve_projected_point_clearance(front_points, fractions, depths):
+    if len(front_points) < 4 or depths is None:
+        return depths
+
+    result = list(depths)
+    for pass_index in range(POST_DEPTH_CLEARANCE_SOLVER_PASSES):
+        projected = [
+            project_target_point_to_depth(point[0], point[1], result[index])
+            for index, point in enumerate(front_points)
+        ]
+        offsets = [0.0 for _ in result]
+        weights = [0.0 for _ in result]
+
+        for i, point_i in enumerate(projected):
+            for j in range(i + DEPTH_CLEARANCE_SKIP_NEIGHBORS, len(projected)):
+                if i < DEPTH_CLEARANCE_SKIP_NEIGHBORS and j > len(projected) - DEPTH_CLEARANCE_SKIP_NEIGHBORS:
+                    continue
+
+                distance = (point_i - projected[j]).length
+                if distance >= POST_DEPTH_CLEARANCE_MM or distance < 1e-6:
+                    continue
+
+                depth_delta = result[j] - result[i]
+                if abs(depth_delta) < 1e-6:
+                    direction = 1.0 if ((i // 17 + j // 17) % 2 == 0) else -1.0
+                else:
+                    direction = 1.0 if depth_delta > 0.0 else -1.0
+
+                push = (POST_DEPTH_CLEARANCE_MM - distance) * POST_DEPTH_CLEARANCE_PUSH
+                offsets[i] -= push * direction
+                offsets[j] += push * direction
+                weights[i] += 1.0
+                weights[j] += 1.0
+
+        moved = False
+        for index, offset in enumerate(offsets):
+            if weights[index] <= 0.0:
+                continue
+            scale = max(1.0, weights[index] ** 0.35)
+            new_depth = max(
+                -MAX_SCULPTURAL_DEPTH,
+                min(MAX_SCULPTURAL_DEPTH, result[index] + offset / scale),
+            )
+            moved = moved or abs(new_depth - result[index]) > 1e-4
+            result[index] = new_depth
+
+        if not moved:
+            break
+
+        if pass_index % 8 == 7:
+            result = smooth_depth_values(result, fractions)
+
+    return result
+
+
+def limit_depth_steps(depths, max_step):
+    if len(depths) < 2:
+        return depths
+
+    result = list(depths)
+    for index in range(1, len(result)):
+        delta = result[index] - result[index - 1]
+        if delta > max_step:
+            result[index] = result[index - 1] + max_step
+        elif delta < -max_step:
+            result[index] = result[index - 1] - max_step
+
+    for index in range(len(result) - 2, -1, -1):
+        delta = result[index] - result[index + 1]
+        if delta > max_step:
+            result[index] = result[index + 1] + max_step
+        elif delta < -max_step:
+            result[index] = result[index + 1] - max_step
+
+    return [max(-MAX_SCULPTURAL_DEPTH, min(MAX_SCULPTURAL_DEPTH, value)) for value in result]
+
+
+def smooth_solution(front_points, fractions, depths, passes, weight):
+    if len(front_points) < 5:
+        return front_points, fractions, depths
+
+    points = list(front_points)
+    fit_values = list(fractions)
+    depth_values = list(depths) if depths is not None else None
+
+    for _ in range(passes):
+        next_points = list(points)
+        next_fit_values = list(fit_values)
+        next_depth_values = list(depth_values) if depth_values is not None else None
+
+        for index in range(1, len(points) - 1):
+            previous = points[index - 1]
+            current = points[index]
+            following = points[index + 1]
+            next_points[index] = (
+                current[0] * (1.0 - weight) + (previous[0] + following[0]) * (weight * 0.5),
+                current[1] * (1.0 - weight) + (previous[1] + following[1]) * (weight * 0.5),
+            )
+            next_fit_values[index] = (
+                fit_values[index] * (1.0 - weight)
+                + (fit_values[index - 1] + fit_values[index + 1]) * (weight * 0.5)
+            )
+            if depth_values is not None and next_depth_values is not None:
+                next_depth_values[index] = (
+                    depth_values[index] * (1.0 - weight)
+                    + (depth_values[index - 1] + depth_values[index + 1]) * (weight * 0.5)
+                )
+
+        points = next_points
+        fit_values = [max(0.0, min(1.0, value)) for value in next_fit_values]
+        if next_depth_values is not None:
+            depth_values = limit_depth_steps(next_depth_values, POST_DEPTH_MAX_STEP_MM)
+
+    return points, fit_values, depth_values
+
+
 def make_3d_points(front_points, segment_lit_flags, depth_values=None):
     points = []
     projection_targets = []
@@ -1397,6 +1520,24 @@ def main():
         front_points, segment_lit_flags, depth_values = catmull_rom_path_with_values(
             front_points, segment_lit_flags, depth_values, RESAMPLE_STEP_MM
         )
+        for _ in range(POST_DEPTH_CLEARANCE_CYCLES):
+            depth_values = solve_projected_point_clearance(
+                front_points,
+                segment_lit_flags,
+                depth_values,
+            )
+            depth_values = limit_depth_steps(depth_values, POST_DEPTH_MAX_STEP_MM)
+        front_points, segment_lit_flags, depth_values = smooth_solution(
+            front_points,
+            segment_lit_flags,
+            depth_values,
+            FINAL_GEOMETRY_SMOOTHING_PASSES,
+            FINAL_GEOMETRY_SMOOTHING_WEIGHT,
+        )
+        segment_lit_flags = [
+            mask_led_fit_fraction(binary, width, height, point[0], point[1])
+            for point in front_points
+        ]
         front_points_raw = front_points
         front_points_simplified = front_points
         raster_runs = 0
@@ -1473,6 +1614,12 @@ def main():
         "centerline_depth_lanes_mm": list(CENTERLINE_DEPTH_LANES_MM),
         "centerline_connector_escape_margin_mm": CENTERLINE_CONNECTOR_ESCAPE_MARGIN_MM,
         "centerline_chaikin_passes": CENTERLINE_CHAIKIN_PASSES,
+        "post_depth_clearance_mm": POST_DEPTH_CLEARANCE_MM,
+        "post_depth_clearance_passes": POST_DEPTH_CLEARANCE_SOLVER_PASSES,
+        "post_depth_clearance_cycles": POST_DEPTH_CLEARANCE_CYCLES,
+        "post_depth_max_step_mm": POST_DEPTH_MAX_STEP_MM,
+        "final_geometry_smoothing_passes": FINAL_GEOMETRY_SMOOTHING_PASSES,
+        "final_geometry_smoothing_weight": FINAL_GEOMETRY_SMOOTHING_WEIGHT,
         "simplified_front_points": len(front_points_simplified),
         "chaikin_passes": CHAIKIN_PASSES,
         "front_points": len(front_points),

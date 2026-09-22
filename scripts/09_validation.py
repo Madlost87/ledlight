@@ -83,10 +83,17 @@ def segment_distance(a0, a1, b0, b1):
 
 def self_clearance_report(points):
     if len(points) < 4:
-        return {"min_nonlocal_distance_mm": None, "clearance_violation_count": 0}
+        return {
+            "min_nonlocal_distance_mm": None,
+            "clearance_violation_count": 0,
+            "clearance_hotspots": [],
+            "closest_conflicts": [],
+        }
 
     min_distance = None
     violations = 0
+    hotspot_counts = {}
+    closest_conflicts = []
     segment_count = len(points) - 1
     closed_loop = (points[0] - points[-1]).length < 1.5
     for i in range(segment_count):
@@ -100,10 +107,41 @@ def self_clearance_report(points):
                 min_distance = distance
             if distance < PROFILE_CLEARANCE_MM:
                 violations += 1
+                bucket = ((i // 100) * 100, (j // 100) * 100)
+                hotspot_counts[bucket] = hotspot_counts.get(bucket, 0) + 1
+                closest_conflicts.append(
+                    {
+                        "distance_mm": distance,
+                        "segment_a": [i, i + 1],
+                        "segment_b": [j, j + 1],
+                    }
+                )
+
+    hotspots = []
+    for (start_a, start_b), count in sorted(
+        hotspot_counts.items(),
+        key=lambda item: item[1],
+        reverse=True,
+    )[:12]:
+        hotspots.append(
+            {
+                "range_a": [start_a, min(start_a + 99, segment_count)],
+                "range_b": [start_b, min(start_b + 99, segment_count)],
+                "violation_count": count,
+            }
+        )
+
+    closest_conflicts = sorted(
+        closest_conflicts,
+        key=lambda item: item["distance_mm"],
+    )[:12]
+
     return {
         "min_nonlocal_distance_mm": min_distance,
         "clearance_violation_count": violations,
         "clearance_threshold_mm": PROFILE_CLEARANCE_MM,
+        "clearance_hotspots": hotspots,
+        "closest_conflicts": closest_conflicts,
     }
 
 
@@ -141,6 +179,15 @@ def main():
                 f"clearance_passed: {clearance_passed}",
                 f"clearance_violations: {clearance['clearance_violation_count']}",
                 f"min_nonlocal_distance_mm: {clearance['min_nonlocal_distance_mm']}",
+                "top_clearance_hotspots:",
+                *[
+                    (
+                        f"  {item['range_a'][0]}-{item['range_a'][1]} vs "
+                        f"{item['range_b'][0]}-{item['range_b'][1]}: "
+                        f"{item['violation_count']}"
+                    )
+                    for item in clearance["clearance_hotspots"][:5]
+                ],
                 f"max_segment_mm: {report['max_segment_length_mm']:.2f}",
                 f"path_length_mm: {report['path_length_mm']:.2f}",
                 f"quality_score: {report['optimizer_quality_score_0_1']:.3f}",
