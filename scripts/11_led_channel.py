@@ -6,15 +6,17 @@ import bpy
 from mathutils import Vector
 from PIL import Image
 
-from al_config import load_autosize_config, nested_get
+from al_config import (
+    get_target_image_name,
+    load_autosize_config,
+    nested_get,
+    readable_preview_object_name,
+    target_output_name,
+)
 
 PROJECT_COLLECTION = "ANAMORPHIC_LAMP"
-FRAMES_JSON = "orientation_frames_LOVE.json"
-PATH_JSON = "continuous_path_LOVE.json"
 LED_OBJECT = "AL_LED_CHANNEL_PREVIEW"
-READABLE_OBJECT = "AL_READABLE_LOVE_PREVIEW"
 READABILITY_OBJECT = "AL_CAMERA_READABILITY_PREVIEW"
-OUTPUT_JSON = "led_channel_preview_LOVE.json"
 LED_WIDTH = 10.0
 LED_THICKNESS = 3.0
 LED_OFFSET = 4.8
@@ -130,8 +132,16 @@ def make_led_side_material():
 
 
 def read_led_points(project_root):
-    frame_data = json.loads((project_root / "output" / "debug" / FRAMES_JSON).read_text(encoding="utf-8"))
-    path_data = json.loads((project_root / "output" / "debug" / PATH_JSON).read_text(encoding="utf-8"))
+    frame_data = json.loads(
+        (project_root / "output" / "debug" / target_output_name(project_root, "orientation_frames")).read_text(
+            encoding="utf-8"
+        )
+    )
+    path_data = json.loads(
+        (project_root / "output" / "debug" / target_output_name(project_root, "continuous_path")).read_text(
+            encoding="utf-8"
+        )
+    )
     points = []
     flags = []
     path_nodes = path_data.get("nodes", [])
@@ -147,8 +157,16 @@ def read_led_points(project_root):
 
 
 def read_led_frames(project_root):
-    frame_data = json.loads((project_root / "output" / "debug" / FRAMES_JSON).read_text(encoding="utf-8"))
-    path_data = json.loads((project_root / "output" / "debug" / PATH_JSON).read_text(encoding="utf-8"))
+    frame_data = json.loads(
+        (project_root / "output" / "debug" / target_output_name(project_root, "orientation_frames")).read_text(
+            encoding="utf-8"
+        )
+    )
+    path_data = json.loads(
+        (project_root / "output" / "debug" / target_output_name(project_root, "continuous_path")).read_text(
+            encoding="utf-8"
+        )
+    )
     path_nodes = path_data.get("nodes", [])
     frames = []
     for index, frame in enumerate(frame_data["frames"]):
@@ -172,7 +190,11 @@ def read_led_frames(project_root):
 
 
 def read_projection_points(project_root):
-    data = json.loads((project_root / "output" / "debug" / PATH_JSON).read_text(encoding="utf-8"))
+    data = json.loads(
+        (project_root / "output" / "debug" / target_output_name(project_root, "continuous_path")).read_text(
+            encoding="utf-8"
+        )
+    )
     points = []
     flags = []
     for node in data["nodes"]:
@@ -211,7 +233,7 @@ def target_pixel_to_mm(x, y, width_px, height_px):
 
 
 def read_coverage_segments(project_root):
-    image_path = project_root / "input" / "target_LOVE.png"
+    image_path = project_root / "input" / get_target_image_name(project_root)
     image = Image.open(image_path).convert("L")
     width_px, height_px = image.size
     pixels = image.load()
@@ -243,7 +265,7 @@ def read_coverage_segments(project_root):
 
 def create_readability_preview(project_root):
     remove_existing_object(READABILITY_OBJECT)
-    image_path = project_root / "input" / "target_LOVE.png"
+    image_path = project_root / "input" / get_target_image_name(project_root)
     image = Image.open(image_path).convert("L")
     width_px, height_px = image.size
     pixels = image.load()
@@ -457,14 +479,15 @@ def main():
     led_material = make_led_material()
     side_material = make_led_side_material()
     led_frames = read_led_frames(project_root)
+    readable_object = readable_preview_object_name(project_root)
     led, lit_nodes, led_length = create_continuous_led_ribbon(
         LED_OBJECT, led_frames, LED_WIDTH, LED_OFFSET, led_material, side_material
     )
 
     readable_points, readable_flags = read_projection_points(project_root)
     readable_segments = split_lit_segments(readable_points, readable_flags)
-    readable = create_multi_curve_object(READABLE_OBJECT, readable_segments, READABLE_LED_WIDTH / 2.0, led_material)
-    readable["role"] = "Camera-readable anamorphic LOVE preview generated from target projection."
+    readable = create_multi_curve_object(readable_object, readable_segments, READABLE_LED_WIDTH / 2.0, led_material)
+    readable["role"] = "Camera-readable anamorphic preview generated from target projection."
     readability, readability_tiles = create_readability_preview(project_root)
 
     output = {
@@ -482,11 +505,11 @@ def main():
         "frontness_model": "continuous mask-fit smoothing",
         "led_power_model": "always_on",
         "front_facing_rule": "The LED is always on; it becomes visible from camera where the profile twists its luminous face toward the target mask.",
-        "camera_readable_object": READABLE_OBJECT,
+        "camera_readable_object": readable_object,
         "camera_readability_preview": READABILITY_OBJECT,
         "camera_readability_tiles": readability_tiles,
     }
-    output_path = project_root / "output" / "debug" / OUTPUT_JSON
+    output_path = project_root / "output" / "debug" / target_output_name(project_root, "led_channel_preview")
     output_path.write_text(json.dumps(output, indent=2), encoding="utf-8")
     print("STEP 11 - LED CHANNEL")
     print(f"Preview object: {LED_OBJECT}")

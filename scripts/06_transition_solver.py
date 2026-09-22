@@ -3,8 +3,7 @@ from pathlib import Path
 
 import bpy
 
-INPUT_JSON_NAME = "orientation_frames_LOVE.json"
-OUTPUT_JSON_NAME = "transition_analysis_LOVE.json"
+from al_config import target_output_name
 
 
 def get_project_root():
@@ -16,7 +15,7 @@ def get_project_root():
 
 def main():
     project_root = get_project_root()
-    input_path = project_root / "output" / "debug" / INPUT_JSON_NAME
+    input_path = project_root / "output" / "debug" / target_output_name(project_root, "orientation_frames")
     if not input_path.exists():
         raise FileNotFoundError(f"Missing {input_path}. Run step 05 first.")
 
@@ -55,7 +54,7 @@ def main():
             "Future solver should reduce high twist and curvature by moving points/depth.",
         ],
     }
-    output_path = project_root / "output" / "debug" / OUTPUT_JSON_NAME
+    output_path = project_root / "output" / "debug" / target_output_name(project_root, "transition_analysis")
     output_path.write_text(json.dumps(output, indent=2), encoding="utf-8")
     print("STEP 06 - TRANSITION SOLVER")
     print(f"Max twist: {output['max_twist_deg']:.2f} deg")

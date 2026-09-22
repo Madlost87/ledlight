@@ -3,11 +3,7 @@ from pathlib import Path
 
 import bpy
 
-INPUT_PATH_JSON = "continuous_path_LOVE.json"
-INPUT_FRAMES_JSON = "orientation_frames_LOVE.json"
-INPUT_TRANSITION_JSON = "transition_analysis_LOVE.json"
-INPUT_CAMERA_EVAL_JSON = "camera_evaluation_LOVE.json"
-OUTPUT_JSON_NAME = "optimized_solution_LOVE.json"
+from al_config import target_output_name
 
 
 def get_project_root():
@@ -20,10 +16,10 @@ def get_project_root():
 def main():
     project_root = get_project_root()
     debug_dir = project_root / "output" / "debug"
-    path_data = json.loads((debug_dir / INPUT_PATH_JSON).read_text(encoding="utf-8"))
-    frame_data = json.loads((debug_dir / INPUT_FRAMES_JSON).read_text(encoding="utf-8"))
-    transition_data = json.loads((debug_dir / INPUT_TRANSITION_JSON).read_text(encoding="utf-8"))
-    camera_eval_path = debug_dir / INPUT_CAMERA_EVAL_JSON
+    path_data = json.loads((debug_dir / target_output_name(project_root, "continuous_path")).read_text(encoding="utf-8"))
+    frame_data = json.loads((debug_dir / target_output_name(project_root, "orientation_frames")).read_text(encoding="utf-8"))
+    transition_data = json.loads((debug_dir / target_output_name(project_root, "transition_analysis")).read_text(encoding="utf-8"))
+    camera_eval_path = debug_dir / target_output_name(project_root, "camera_evaluation")
     camera_eval_data = None
     if camera_eval_path.exists():
         camera_eval_data = json.loads(camera_eval_path.read_text(encoding="utf-8"))
@@ -55,7 +51,7 @@ def main():
             "Future optimizer should adjust depth and transitions to improve score.",
         ],
     }
-    output_path = debug_dir / OUTPUT_JSON_NAME
+    output_path = debug_dir / target_output_name(project_root, "optimized_solution")
     output_path.write_text(json.dumps(output, indent=2), encoding="utf-8")
     print("STEP 08 - OPTIMIZER")
     print(f"Quality score: {score:.3f}")

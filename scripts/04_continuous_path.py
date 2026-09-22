@@ -7,11 +7,9 @@ import bpy
 from mathutils import Vector
 from PIL import Image
 
-from al_config import load_autosize_config, nested_get
+from al_config import get_target_image_name, load_autosize_config, nested_get, target_output_name
 
 PROJECT_COLLECTION = "ANAMORPHIC_LAMP"
-TARGET_IMAGE_NAME = "target_LOVE.png"
-OUTPUT_JSON_NAME = "continuous_path_LOVE.json"
 DEBUG_OBJECT_NAME = "AL_CONTINUOUS_PATH"
 
 TARGET_WIDTH_MM = 260.0
@@ -40,6 +38,10 @@ FLOW_WAVE_AMPLITUDE_MM = 1.0
 LED_WIDTH_MM = 10.0
 LED_MASK_FIT_RADIUS_MM = LED_WIDTH_MM * 0.5
 LED_MASK_FIT_MIN_FRACTION = 0.36
+LEFT_COMPONENT_RESTORE_MIN_AREA_PX = 900
+LEFT_COMPONENT_RESTORE_MIN_MASK_FIT = 0.24
+LEFT_COMPONENT_RESTORE_FRONTNESS = 0.58
+LEFT_COMPONENT_RESTORE_MARGIN_LED_WIDTHS = 1.0
 PATCH_ROW_SPACING_MM = 4.0
 PATCH_MIN_RUN_MM = 6.0
 PATCH_CONNECTOR_SAMPLES = 36
@@ -56,6 +58,7 @@ CENTERLINE_BACKSTAGE_SIDE_SWAY_MM = 90.0
 CENTERLINE_BACKSTAGE_VERTICAL_SWAY_MM = 85.0
 CENTERLINE_BACKSTAGE_DEPTH_BIAS = 0.86
 CENTERLINE_BACKSTAGE_DEPTH_SWING = 0.16
+CENTERLINE_BACKSTAGE_TANGLE_LOOPS = 3
 CLOSED_LOOP_PATH = True
 DEPTH_CLEARANCE_MM = 28.0
 DEPTH_CLEARANCE_SKIP_NEIGHBORS = 70
@@ -67,6 +70,13 @@ POST_DEPTH_CLEARANCE_PUSH = 0.32
 POST_DEPTH_MAX_STEP_MM = 5.0
 FINAL_GEOMETRY_SMOOTHING_PASSES = 8
 FINAL_GEOMETRY_SMOOTHING_WEIGHT = 0.22
+SINUOUS_LOOP_SMOOTHING_PASSES = 9
+SINUOUS_VISIBLE_SMOOTHING_WEIGHT = 0.055
+SINUOUS_HIDDEN_SMOOTHING_WEIGHT = 0.24
+SINUOUS_DEPTH_SMOOTHING_WEIGHT = 0.30
+CURVATURE_SPIKE_SMOOTHING_PASSES = 5
+CURVATURE_SPIKE_SMOOTHING_WEIGHT = 0.48
+FINAL_LOOP_CLEARANCE_CYCLES = 0
 
 
 def apply_autosize_config(project_root):
@@ -77,6 +87,7 @@ def apply_autosize_config(project_root):
     global CENTERLINE_CONNECTOR_ESCAPE_MARGIN_MM, CENTERLINE_BACKSTAGE_CONNECTOR_SAMPLES
     global CENTERLINE_BACKSTAGE_SIDE_SWAY_MM, CENTERLINE_BACKSTAGE_VERTICAL_SWAY_MM
     global CENTERLINE_BACKSTAGE_DEPTH_BIAS, CENTERLINE_BACKSTAGE_DEPTH_SWING
+    global CENTERLINE_BACKSTAGE_TANGLE_LOOPS
     global CLOSED_LOOP_PATH
 
     config = load_autosize_config(project_root)
@@ -145,6 +156,13 @@ def apply_autosize_config(project_root):
             CENTERLINE_BACKSTAGE_DEPTH_SWING,
         )
     )
+    CENTERLINE_BACKSTAGE_TANGLE_LOOPS = int(
+        nested_get(
+            config,
+            ("planner", "backstage_tangle_loops"),
+            CENTERLINE_BACKSTAGE_TANGLE_LOOPS,
+        )
+    )
     CLOSED_LOOP_PATH = bool(nested_get(config, ("planner", "closed_loop"), CLOSED_LOOP_PATH))
 
 
@@ -172,7 +190,7 @@ def remove_existing_object(name):
 
 
 def load_binary_target(project_root):
-    image_path = project_root / "input" / TARGET_IMAGE_NAME
+    image_path = project_root / "input" / get_target_image_name(project_root)
     if not image_path.exists():
         raise FileNotFoundError(f"Missing target image: {image_path}")
 
@@ -673,6 +691,77 @@ def clamp_target_point_to_lamp_bounds(x_target, z_target, depth):
     )
 
 
+def sample_tangle_cloud_connector(
+    start,
+    end,
+    start_depth,
+    end_depth,
+    connector_index,
+    x_min,
+    x_max,
+    z_min,
+    z_max,
+):
+    front_width = max(x_max - x_min, 1.0)
+    front_height = max(z_max - z_min, 1.0)
+    center_x = (x_min + x_max) * 0.5
+    center_z = (z_min + z_max) * 0.5
+    radius_x = min(max(CENTERLINE_BACKSTAGE_SIDE_SWAY_MM, front_width * 0.28), front_width * 0.48)
+    radius_z = min(max(CENTERLINE_BACKSTAGE_VERTICAL_SWAY_MM, front_height * 0.44), front_height * 0.66)
+    loop_count = max(1.5, CENTERLINE_BACKSTAGE_TANGLE_LOOPS + 0.5 * (connector_index % 2))
+    phase = connector_index * 0.83
+    cloud_offsets = (
+        (-0.42 * front_width, -0.18 * front_height),
+        (0.00 * front_width, 0.30 * front_height),
+        (0.42 * front_width, -0.12 * front_height),
+    )
+    start_lobe = connector_index % len(cloud_offsets)
+    end_lobe = (connector_index + 1 + (connector_index % 2)) % len(cloud_offsets)
+    start_center = (
+        center_x + cloud_offsets[start_lobe][0],
+        center_z + cloud_offsets[start_lobe][1],
+    )
+    end_center = (
+        center_x + cloud_offsets[end_lobe][0],
+        center_z + cloud_offsets[end_lobe][1],
+    )
+    cross_bias = -1.0 if connector_index % 2 else 1.0
+    points = []
+
+    for sample_index in range(1, CENTERLINE_BACKSTAGE_CONNECTOR_SAMPLES + 1):
+        t = sample_index / CENTERLINE_BACKSTAGE_CONNECTOR_SAMPLES
+        envelope = math.sin(math.pi * t)
+        envelope = max(0.0, envelope) ** 0.72
+        base_x = start[0] * (1.0 - t) + end[0] * t
+        base_z = start[1] * (1.0 - t) + end[1] * t
+        base_depth = start_depth * (1.0 - t) + end_depth * t
+        theta = t * math.tau * loop_count + phase
+        lobe_x = start_center[0] * (1.0 - t) + end_center[0] * t
+        lobe_z = start_center[1] * (1.0 - t) + end_center[1] * t
+        lobe_x += math.sin(math.pi * t) * cross_bias * radius_x * 0.34
+        lobe_z += math.sin(math.tau * t + phase) * radius_z * 0.20
+        knot_x = (
+            lobe_x
+            + math.sin(theta) * radius_x * 0.42
+            + math.sin(theta * 2.0 + phase * 0.7) * radius_x * 0.16
+        )
+        knot_z = (
+            lobe_z
+            + math.sin(theta * 2.0 + math.pi * 0.25) * radius_z * 0.38
+            + math.cos(theta * 0.75 + phase) * radius_z * 0.18
+        )
+        braid = math.sin(theta * 3.0 + connector_index)
+        rear_depth = backstage_depth_value(connector_index, t)
+        rear_depth += braid * MAX_SCULPTURAL_DEPTH * CENTERLINE_BACKSTAGE_DEPTH_SWING * 0.48
+        depth = blend_depth_toward_backstage(base_depth, rear_depth, envelope)
+        x = base_x * (1.0 - envelope) + knot_x * envelope
+        z = base_z * (1.0 - envelope) + knot_z * envelope
+        x, z = clamp_target_point_to_lamp_bounds(x, z, depth)
+        points.append((x, z, clamp_value(depth, -MAX_SCULPTURAL_DEPTH, MAX_SCULPTURAL_DEPTH)))
+
+    return points
+
+
 def add_centerline_connector(
     points,
     fractions,
@@ -689,59 +778,20 @@ def add_centerline_connector(
 ):
     if math.dist(start, end) < 1e-6:
         return
-    # Hidden connectors are the lamp's backstage movement. They leave the
-    # readable mask, travel deep behind it, and re-enter softly at the next
-    # letter stroke instead of taking the shortest possible bridge.
-    escape_margin = CENTERLINE_CONNECTOR_ESCAPE_MARGIN_MM
-    vertical_sign = 1.0 if connector_index % 2 == 0 else -1.0
-    side_sign = 1.0 if connector_index % 4 in (0, 3) else -1.0
-    front_width = max(x_max - x_min, 1.0)
-    side_sway = max(CENTERLINE_BACKSTAGE_SIDE_SWAY_MM, front_width * 0.16)
-    entry_sway = side_sign * min(side_sway * 0.62, front_width * 0.56)
-    side_x = x_max + side_sway if side_sign > 0.0 else x_min - side_sway
-    cross_x = x_min - side_sway * 0.38 if side_sign > 0.0 else x_max + side_sway * 0.38
-    edge_z = z_max + escape_margin if vertical_sign > 0.0 else z_min - escape_margin
-    shoulder_z = z_max + escape_margin * 0.48 if vertical_sign > 0.0 else z_min - escape_margin * 0.48
-    outer_z = edge_z + vertical_sign * CENTERLINE_BACKSTAGE_VERTICAL_SWAY_MM
-    inner_z = edge_z + vertical_sign * CENTERLINE_BACKSTAGE_VERTICAL_SWAY_MM * 0.34
-
-    backstage_1 = backstage_depth_value(connector_index, 0.20)
-    backstage_2 = backstage_depth_value(connector_index, 0.48)
-    backstage_3 = backstage_depth_value(connector_index, 0.76)
-    route_style = connector_index % 3
-
-    if route_style == 0:
-        waypoints = [
-            (start[0], start[1], start_depth),
-            (start[0] + entry_sway, shoulder_z, blend_depth_toward_backstage(start_depth, backstage_1, 0.54)),
-            (side_x, outer_z, backstage_1),
-            (side_x, inner_z, backstage_2),
-            (end[0] - entry_sway * 0.72, shoulder_z, blend_depth_toward_backstage(end_depth, backstage_3, 0.62)),
-            (end[0], end[1], end_depth),
-        ]
-    elif route_style == 1:
-        waypoints = [
-            (start[0], start[1], start_depth),
-            (start[0] + entry_sway * 0.55, shoulder_z, blend_depth_toward_backstage(start_depth, backstage_1, 0.48)),
-            (side_x, outer_z, backstage_1),
-            (cross_x, outer_z, backstage_2),
-            (end[0] - entry_sway * 0.45, shoulder_z, blend_depth_toward_backstage(end_depth, backstage_3, 0.58)),
-            (end[0], end[1], end_depth),
-        ]
-    else:
-        waypoints = [
-            (start[0], start[1], start_depth),
-            (start[0] + entry_sway * 0.44, shoulder_z, blend_depth_toward_backstage(start_depth, backstage_1, 0.44)),
-            (cross_x, inner_z, backstage_1),
-            (side_x, outer_z, backstage_2),
-            (side_x * 0.72 + end[0] * 0.28, inner_z, backstage_3),
-            (end[0] - entry_sway * 0.40, shoulder_z, blend_depth_toward_backstage(end_depth, backstage_3, 0.52)),
-            (end[0], end[1], end_depth),
-        ]
-
-    connector_points = sample_backstage_route(waypoints, CENTERLINE_BACKSTAGE_CONNECTOR_SAMPLES)
+    # Hidden connectors now form a compact rear tangle cloud rather than large
+    # perimeter arcs. Their LED face remains turned away from the camera.
+    connector_points = sample_tangle_cloud_connector(
+        start,
+        end,
+        start_depth,
+        end_depth,
+        connector_index,
+        x_min,
+        x_max,
+        z_min,
+        z_max,
+    )
     for x, z, depth in connector_points:
-        x, z = clamp_target_point_to_lamp_bounds(x, z, depth)
         points.append((x, z))
         fractions.append(0.0)
         depths.append(depth)
@@ -916,6 +966,104 @@ def white_bounds_front_mm(binary, width, height):
     if not xs:
         return (-80.0, 80.0, TARGET_Z_CENTER - 40.0, TARGET_Z_CENTER + 40.0)
     return min(xs), max(xs), min(zs), max(zs)
+
+
+def white_components_with_bounds(binary, width, height, min_area_px):
+    seen = [[False for _ in range(width)] for _ in range(height)]
+    components = []
+    for y in range(height):
+        for x in range(width):
+            if seen[y][x] or not binary[y][x]:
+                continue
+            queue = deque([(x, y)])
+            seen[y][x] = True
+            area = 0
+            min_x = max_x = x
+            min_y = max_y = y
+
+            while queue:
+                cx, cy = queue.popleft()
+                area += 1
+                min_x = min(min_x, cx)
+                max_x = max(max_x, cx)
+                min_y = min(min_y, cy)
+                max_y = max(max_y, cy)
+                for nx, ny in neighbors8(cx, cy):
+                    if nx < 0 or ny < 0 or nx >= width or ny >= height:
+                        continue
+                    if seen[ny][nx] or not binary[ny][nx]:
+                        continue
+                    seen[ny][nx] = True
+                    queue.append((nx, ny))
+
+            if area >= min_area_px:
+                components.append(
+                    {
+                        "area_px": area,
+                        "bbox_px": [min_x, max_x, min_y, max_y],
+                    }
+                )
+
+    return sorted(components, key=lambda item: (item["bbox_px"][0], -item["area_px"]))
+
+
+def component_front_bounds(component, width, height, margin_mm):
+    min_x, max_x, min_y, max_y = component["bbox_px"]
+    left, top = pixel_to_front_mm(min_x, min_y, width, height)
+    right, bottom = pixel_to_front_mm(max_x, max_y, width, height)
+    return (
+        min(left, right) - margin_mm,
+        max(left, right) + margin_mm,
+        min(top, bottom) - margin_mm,
+        max(top, bottom) + margin_mm,
+    )
+
+
+def restore_left_component_frontness(binary, width, height, front_points, fractions):
+    stats = {
+        "left_component_frontness_restore_nodes": 0,
+        "left_component_frontness_restore_min_mask_fit": LEFT_COMPONENT_RESTORE_MIN_MASK_FIT,
+        "left_component_frontness_restore_frontness": LEFT_COMPONENT_RESTORE_FRONTNESS,
+    }
+    components = white_components_with_bounds(
+        binary,
+        width,
+        height,
+        LEFT_COMPONENT_RESTORE_MIN_AREA_PX,
+    )
+    if not components:
+        return fractions, stats
+
+    component = components[0]
+    margin_mm = LED_WIDTH_MM * LEFT_COMPONENT_RESTORE_MARGIN_LED_WIDTHS
+    x_min, x_max, z_min, z_max = component_front_bounds(component, width, height, margin_mm)
+    restored = list(fractions)
+    restored_count = 0
+
+    for index, point in enumerate(front_points):
+        if index >= len(restored):
+            continue
+        x, z = point
+        if x < x_min or x > x_max or z < z_min or z > z_max:
+            continue
+        actual_fit = mask_led_fit_fraction(binary, width, height, x, z)
+        if actual_fit < LEFT_COMPONENT_RESTORE_MIN_MASK_FIT:
+            continue
+        previous = max(0.0, min(1.0, restored[index]))
+        next_value = min(1.0, max(previous, actual_fit, LEFT_COMPONENT_RESTORE_FRONTNESS))
+        if next_value > previous + 1e-6:
+            restored[index] = next_value
+            restored_count += 1
+
+    stats.update(
+        {
+            "left_component_frontness_restore_nodes": restored_count,
+            "left_component_frontness_restore_area_px": component["area_px"],
+            "left_component_frontness_restore_bbox_px": component["bbox_px"],
+            "left_component_frontness_restore_margin_mm": margin_mm,
+        }
+    )
+    return restored, stats
 
 
 def smoothstep(t):
@@ -1565,6 +1713,167 @@ def smooth_solution(front_points, fractions, depths, passes, weight):
     return points, fit_values, depth_values
 
 
+def smooth_sinuous_closed_loop(front_points, fractions, depths):
+    if len(front_points) < 6:
+        return front_points, fractions, depths
+
+    closed = CLOSED_LOOP_PATH and math.dist(front_points[0], front_points[-1]) < RESAMPLE_STEP_MM * 2.0
+    if closed:
+        points = list(front_points[:-1])
+        fit_values = list(fractions[:-1])
+        depth_values = list(depths[:-1]) if depths is not None else None
+    else:
+        points = list(front_points)
+        fit_values = list(fractions)
+        depth_values = list(depths) if depths is not None else None
+
+    count = len(points)
+    if count < 5:
+        return front_points, fractions, depths
+
+    for _ in range(SINUOUS_LOOP_SMOOTHING_PASSES):
+        next_points = list(points)
+        next_fit_values = list(fit_values)
+        next_depth_values = list(depth_values) if depth_values is not None else None
+
+        indices = range(count) if closed else range(1, count - 1)
+        for index in indices:
+            previous = points[(index - 1) % count]
+            current = points[index]
+            following = points[(index + 1) % count]
+            mask_fit = fit_values[index] if index < len(fit_values) else 0.0
+            hidden = 1.0 - clamp_value(mask_fit / max(LED_MASK_FIT_MIN_FRACTION, 1e-6), 0.0, 1.0)
+            weight = (
+                SINUOUS_VISIBLE_SMOOTHING_WEIGHT * (1.0 - hidden)
+                + SINUOUS_HIDDEN_SMOOTHING_WEIGHT * hidden
+            )
+            next_points[index] = (
+                current[0] * (1.0 - weight) + (previous[0] + following[0]) * (weight * 0.5),
+                current[1] * (1.0 - weight) + (previous[1] + following[1]) * (weight * 0.5),
+            )
+            next_fit_values[index] = (
+                fit_values[index] * 0.86
+                + (fit_values[(index - 1) % count] + fit_values[(index + 1) % count]) * 0.07
+            )
+            if depth_values is not None and next_depth_values is not None:
+                depth_weight = max(weight, SINUOUS_DEPTH_SMOOTHING_WEIGHT * hidden)
+                next_depth_values[index] = (
+                    depth_values[index] * (1.0 - depth_weight)
+                    + (depth_values[(index - 1) % count] + depth_values[(index + 1) % count]) * (depth_weight * 0.5)
+                )
+
+        points = next_points
+        fit_values = [clamp_value(value, 0.0, 1.0) for value in next_fit_values]
+        if next_depth_values is not None:
+            depth_values = limit_depth_steps(next_depth_values, POST_DEPTH_MAX_STEP_MM)
+
+    if closed:
+        points.append(points[0])
+        fit_values.append(fit_values[0])
+        if depth_values is not None:
+            depth_values.append(depth_values[0])
+
+    return points, fit_values, depth_values
+
+
+def smooth_curvature_spikes(front_points, fractions, depths):
+    if len(front_points) < 5:
+        return front_points, fractions, depths
+
+    closed = CLOSED_LOOP_PATH and math.dist(front_points[0], front_points[-1]) < RESAMPLE_STEP_MM * 2.0
+    if closed:
+        points = list(front_points[:-1])
+        fit_values = list(fractions[:-1])
+        depth_values = list(depths[:-1]) if depths is not None else None
+    else:
+        points = list(front_points)
+        fit_values = list(fractions)
+        depth_values = list(depths) if depths is not None else None
+
+    count = len(points)
+    for _ in range(CURVATURE_SPIKE_SMOOTHING_PASSES):
+        next_points = list(points)
+        next_depth_values = list(depth_values) if depth_values is not None else None
+        indices = range(count) if closed else range(1, count - 1)
+        for index in indices:
+            previous = points[(index - 1) % count]
+            current = points[index]
+            following = points[(index + 1) % count]
+            d1 = math.dist(previous, current)
+            d2 = math.dist(current, following)
+            span = d1 + d2
+            if span < 1e-6 or span > RESAMPLE_STEP_MM * 4.2:
+                continue
+            direct = math.dist(previous, following)
+            if direct / span > 0.42:
+                continue
+            weight = CURVATURE_SPIKE_SMOOTHING_WEIGHT
+            next_points[index] = (
+                current[0] * (1.0 - weight) + (previous[0] + following[0]) * (weight * 0.5),
+                current[1] * (1.0 - weight) + (previous[1] + following[1]) * (weight * 0.5),
+            )
+            if depth_values is not None and next_depth_values is not None:
+                next_depth_values[index] = (
+                    depth_values[index] * (1.0 - weight)
+                    + (depth_values[(index - 1) % count] + depth_values[(index + 1) % count]) * (weight * 0.5)
+                )
+        points = next_points
+        if next_depth_values is not None:
+            depth_values = limit_depth_steps(next_depth_values, POST_DEPTH_MAX_STEP_MM)
+
+    if closed:
+        points.append(points[0])
+        fit_values.append(fit_values[0])
+        if depth_values is not None:
+            depth_values.append(depth_values[0])
+
+    return points, fit_values, depth_values
+
+
+def force_closed_loop(front_points, fractions, depths):
+    if not CLOSED_LOOP_PATH or len(front_points) < 3:
+        return front_points, fractions, depths
+
+    points = list(front_points)
+    fit_values = list(fractions)
+    depth_values = list(depths) if depths is not None else None
+    first_point = points[0]
+    first_fraction = fit_values[0] if fit_values else 0.0
+    first_depth = depth_values[0] if depth_values else None
+    last_point = points[-1]
+    last_fraction = fit_values[-1] if fit_values else 0.0
+    last_depth = depth_values[-1] if depth_values else first_depth
+    front_gap = math.dist(last_point, first_point)
+    depth_gap = abs((first_depth or 0.0) - (last_depth or 0.0))
+    if front_gap < 1e-6 and depth_gap < 1e-6:
+        points[-1] = first_point
+        if fit_values:
+            fit_values[-1] = first_fraction
+        if depth_values is not None:
+            depth_values[-1] = first_depth
+        return points, fit_values, depth_values
+
+    steps = max(
+        1,
+        int(math.ceil(front_gap / max(RESAMPLE_STEP_MM, 1e-6))),
+        int(math.ceil(depth_gap / max(POST_DEPTH_MAX_STEP_MM, 1e-6))),
+    )
+
+    for step in range(1, steps + 1):
+        t = step / steps
+        points.append(
+            (
+                last_point[0] * (1.0 - t) + first_point[0] * t,
+                last_point[1] * (1.0 - t) + first_point[1] * t,
+            )
+        )
+        fit_values.append(last_fraction * (1.0 - t) + first_fraction * t)
+        if depth_values is not None:
+            depth_values.append((last_depth or 0.0) * (1.0 - t) + (first_depth or 0.0) * t)
+
+    return points, fit_values, depth_values
+
+
 def make_3d_points(front_points, segment_lit_flags, depth_values=None):
     points = []
     projection_targets = []
@@ -1608,6 +1917,8 @@ def create_curve_object(points, debug_collection):
     spline.points.add(len(points) - 1)
     for spline_point, point in zip(spline.points, points):
         spline_point.co = (point.x, point.y, point.z, 1.0)
+    if len(points) > 3 and (points[0] - points[-1]).length < 1.5:
+        spline.use_cyclic_u = True
     obj = bpy.data.objects.new(DEBUG_OBJECT_NAME, curve)
     obj.show_name = False
     obj["role"] = "Algorithmic centerline from target bitmap skeleton; one continuous P(s)."
@@ -1661,7 +1972,7 @@ def backstage_profile_stats(points, projection_targets, mask_fit_fractions):
 
 
 def write_path_json(project_root, image_path, points, projection_targets, led_flags, mask_fit_fractions, stats):
-    output_path = project_root / "output" / "debug" / OUTPUT_JSON_NAME
+    output_path = project_root / "output" / "debug" / target_output_name(project_root, "continuous_path")
     total_length = path_length(points)
     nodes = []
     accumulated = 0.0
@@ -1715,6 +2026,11 @@ def main():
     components = [component for component in connected_components(nodes, graph) if len(component) > 8]
     component_paths = [ordered_component_path(component, graph) for component in components]
     pixel_path = bridge_components(component_paths)
+    left_component_restore_stats = {
+        "left_component_frontness_restore_nodes": 0,
+        "left_component_frontness_restore_min_mask_fit": LEFT_COMPONENT_RESTORE_MIN_MASK_FIT,
+        "left_component_frontness_restore_frontness": LEFT_COMPONENT_RESTORE_FRONTNESS,
+    }
 
     if PATH_MODE == "skeleton_branch_single_profile":
         front_points, segment_lit_flags, depth_values, centerline_strokes = centerline_path_to_front_mm(
@@ -1744,9 +2060,53 @@ def main():
             FINAL_GEOMETRY_SMOOTHING_WEIGHT,
         )
         segment_lit_flags = [
-            mask_led_fit_fraction(binary, width, height, point[0], point[1])
-            for point in front_points
+            min(
+                max(0.0, min(1.0, segment_lit_flags[index] if index < len(segment_lit_flags) else 0.0)),
+                mask_led_fit_fraction(binary, width, height, point[0], point[1]),
+            )
+            for index, point in enumerate(front_points)
         ]
+        segment_lit_flags, left_component_restore_stats = restore_left_component_frontness(
+            binary,
+            width,
+            height,
+            front_points,
+            segment_lit_flags,
+        )
+        front_points, segment_lit_flags, depth_values = force_closed_loop(
+            front_points,
+            segment_lit_flags,
+            depth_values,
+        )
+        front_points, segment_lit_flags, depth_values = smooth_sinuous_closed_loop(
+            front_points,
+            segment_lit_flags,
+            depth_values,
+        )
+        front_points, segment_lit_flags, depth_values = smooth_curvature_spikes(
+            front_points,
+            segment_lit_flags,
+            depth_values,
+        )
+        for _ in range(FINAL_LOOP_CLEARANCE_CYCLES):
+            depth_values = solve_projected_point_clearance(
+                front_points,
+                segment_lit_flags,
+                depth_values,
+            )
+            depth_values = limit_depth_steps(depth_values, POST_DEPTH_MAX_STEP_MM)
+        segment_lit_flags = [
+            min(
+                max(0.0, min(1.0, segment_lit_flags[index] if index < len(segment_lit_flags) else 0.0)),
+                mask_led_fit_fraction(binary, width, height, point[0], point[1]),
+            )
+            for index, point in enumerate(front_points)
+        ]
+        front_points, segment_lit_flags, depth_values = force_closed_loop(
+            front_points,
+            segment_lit_flags,
+            depth_values,
+        )
         front_points_raw = front_points
         front_points_simplified = front_points
         raster_runs = 0
@@ -1823,12 +2183,13 @@ def main():
         "depth_strategy": "ordered_centerline_lanes" if depth_values is not None else "procedural_wave",
         "centerline_depth_lanes_mm": list(CENTERLINE_DEPTH_LANES_MM),
         "centerline_connector_escape_margin_mm": CENTERLINE_CONNECTOR_ESCAPE_MARGIN_MM,
-        "backstage_route_model": "multi_waypoint rear sculptural connectors",
+        "backstage_route_model": "compact rear tangle cloud connectors",
         "backstage_connector_samples": CENTERLINE_BACKSTAGE_CONNECTOR_SAMPLES,
         "backstage_side_sway_mm": CENTERLINE_BACKSTAGE_SIDE_SWAY_MM,
         "backstage_vertical_sway_mm": CENTERLINE_BACKSTAGE_VERTICAL_SWAY_MM,
         "backstage_depth_bias": CENTERLINE_BACKSTAGE_DEPTH_BIAS,
         "backstage_depth_swing": CENTERLINE_BACKSTAGE_DEPTH_SWING,
+        "backstage_tangle_loops": CENTERLINE_BACKSTAGE_TANGLE_LOOPS,
         "centerline_chaikin_passes": CENTERLINE_CHAIKIN_PASSES,
         "post_depth_clearance_mm": POST_DEPTH_CLEARANCE_MM,
         "post_depth_clearance_passes": POST_DEPTH_CLEARANCE_SOLVER_PASSES,
@@ -1836,11 +2197,19 @@ def main():
         "post_depth_max_step_mm": POST_DEPTH_MAX_STEP_MM,
         "final_geometry_smoothing_passes": FINAL_GEOMETRY_SMOOTHING_PASSES,
         "final_geometry_smoothing_weight": FINAL_GEOMETRY_SMOOTHING_WEIGHT,
+        "sinuous_loop_smoothing_passes": SINUOUS_LOOP_SMOOTHING_PASSES,
+        "sinuous_visible_smoothing_weight": SINUOUS_VISIBLE_SMOOTHING_WEIGHT,
+        "sinuous_hidden_smoothing_weight": SINUOUS_HIDDEN_SMOOTHING_WEIGHT,
+        "sinuous_depth_smoothing_weight": SINUOUS_DEPTH_SMOOTHING_WEIGHT,
+        "curvature_spike_smoothing_passes": CURVATURE_SPIKE_SMOOTHING_PASSES,
+        "curvature_spike_smoothing_weight": CURVATURE_SPIKE_SMOOTHING_WEIGHT,
+        "final_loop_clearance_cycles": FINAL_LOOP_CLEARANCE_CYCLES,
         "simplified_front_points": len(front_points_simplified),
         "chaikin_passes": CHAIKIN_PASSES,
         "front_points": len(front_points),
     }
     stats.update(backstage_stats)
+    stats.update(left_component_restore_stats)
     output_path = write_path_json(
         project_root, image_path, points, projection_targets, led_flags, mask_fit_fractions, stats
     )

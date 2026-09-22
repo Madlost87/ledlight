@@ -9,7 +9,7 @@ The initial target is the word `LOVE` as a white image on black background. The 
 - `scripts/run_all.py` runs the current end-to-end prototype pipeline.
 - `scripts/00_autosize_config.py` analyzes the target bitmap and derives working dimensions.
 - `scripts/00_setup_scene.py` prepares the Blender scene, collections, camera, reference volume, base, table plane, and secondary light direction.
-- `scripts/01_target_to_path.py` loads `input/target_LOVE.png` and creates `AL_TARGET_IMAGE` as a visual debug reference oriented toward `AL_CAMERA_MAIN`.
+- `scripts/01_target_to_path.py` loads the image declared in `input/target_config.json` and creates `AL_TARGET_IMAGE` as a visual debug reference oriented toward `AL_CAMERA_MAIN`.
 - `scripts/02_camera_projection.py` through `scripts/13_camera_evaluation.py` generate projection samples, a continuous path, orientation frames, product previews, LED previews, validation reports, and camera readability diagnostics.
 
 No Blender add-on is created yet. The current geometry is a preview/prototype,
@@ -26,22 +26,21 @@ depth/clearance solver while preserving camera readability.
 
 ## Changing The Target Image
 
-The current pipeline is partially automatic:
+The current pipeline is target-config driven:
 
-- If you replace the contents of `input/target_LOVE.png` with another
-  white-on-black target image, the autosize and path scripts will analyze the
-  new bitmap and regenerate the lamp dimensions, target scale, projection,
-  centerline, depth lanes, LED visibility mask, validation, and exports.
+- Set `target_id` and `target_image_name` in `input/target_config.json`.
+  For example, `target_id: "LOVE"` and `target_image_name:
+  "target_LOVE.png"` produce files such as `continuous_path_LOVE.json`.
+- If you point `target_image_name` at another white-on-black target image, the
+  autosize and path scripts will analyze the new bitmap and regenerate the lamp
+  dimensions, target scale, projection, centerline, depth lanes, LED visibility
+  mask, validation, and exports.
 - The image should remain a high-contrast white subject on a black background.
   Thin details, disconnected islands, and very dense shapes will strongly affect
   the generated path.
-- The system is not fully target-agnostic yet: many script constants and output
-  files still use the `LOVE` name, and some debug object labels still mention
-  LOVE. So changing the filename itself is not automatic yet.
 - Artistic behavior should be parameterized, not manually recalibrated per
-  image. The planned next step is to move the target name and style controls
-  into one shared config so a future image can be swapped without hunting
-  through every script.
+  image. Some behavior still needs better generalization for difficult logos,
+  but the filename/output plumbing no longer requires script edits.
 
 ## Expected Blender File
 

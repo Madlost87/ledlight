@@ -5,11 +5,8 @@ import bpy
 from mathutils import Vector
 
 from al_config import load_autosize_config, nested_get
+from al_config import target_output_name
 
-PATH_JSON = "continuous_path_LOVE.json"
-OPT_JSON = "optimized_solution_LOVE.json"
-OUTPUT_JSON = "validation_report_LOVE.json"
-OUTPUT_TXT = "validation_report_LOVE.txt"
 LAMP_BOUNDS = {"x": (-160.0, 160.0), "y": (-110.0, 110.0), "z": (0.0, 320.0)}
 PROFILE_CLEARANCE_MM = 20.0
 SELF_CLEARANCE_SKIP_NEIGHBORS = 70
@@ -149,8 +146,8 @@ def main():
     project_root = get_project_root()
     apply_autosize_config(project_root)
     debug_dir = project_root / "output" / "debug"
-    path_data = json.loads((debug_dir / PATH_JSON).read_text(encoding="utf-8"))
-    opt_data = json.loads((debug_dir / OPT_JSON).read_text(encoding="utf-8"))
+    path_data = json.loads((debug_dir / target_output_name(project_root, "continuous_path")).read_text(encoding="utf-8"))
+    opt_data = json.loads((debug_dir / target_output_name(project_root, "optimized_solution")).read_text(encoding="utf-8"))
     points = [Vector(node["point_world_mm"]) for node in path_data["nodes"]]
     out_of_bounds = [index for index, point in enumerate(points) if not in_bounds(point)]
     segment_lengths = [(points[index] - points[index - 1]).length for index in range(1, len(points))]
@@ -168,8 +165,10 @@ def main():
         "path_length_mm": path_data["path_length_mm"],
         "optimizer_quality_score_0_1": opt_data["quality_score_0_1"],
     }
-    (debug_dir / OUTPUT_JSON).write_text(json.dumps(report, indent=2), encoding="utf-8")
-    (debug_dir / OUTPUT_TXT).write_text(
+    output_json = debug_dir / target_output_name(project_root, "validation_report")
+    output_txt = debug_dir / target_output_name(project_root, "validation_report", "txt")
+    output_json.write_text(json.dumps(report, indent=2), encoding="utf-8")
+    output_txt.write_text(
         "\n".join(
             [
                 "ANAMORPHIC_LAMP validation",
@@ -197,7 +196,7 @@ def main():
     )
     print("STEP 09 - VALIDATION")
     print(f"Passed: {report['passed']}")
-    print(f"Output: {debug_dir / OUTPUT_JSON}")
+    print(f"Output: {output_json}")
     print("Status: SUCCESS")
 
 

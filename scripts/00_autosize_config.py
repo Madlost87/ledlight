@@ -5,8 +5,7 @@ from pathlib import Path
 import bpy
 from PIL import Image
 
-TARGET_IMAGE_NAME = "target_LOVE.png"
-OUTPUT_JSON_NAME = "autosize_config_LOVE.json"
+from al_config import load_target_config, target_output_name
 
 LED_WIDTH_MM = 10.0
 LED_THICKNESS_MM = 3.0
@@ -105,7 +104,7 @@ def analyze_target(image_path):
     }
 
 
-def autosize(analysis):
+def autosize(analysis, target_config):
     image_w, image_h = analysis["image_px"]
     aspect = image_h / image_w
     bbox_aspect = analysis["white_bbox_aspect"]
@@ -135,7 +134,8 @@ def autosize(analysis):
     return {
         "source": "ANAMORPHIC_LAMP scripts/00_autosize_config.py",
         "scale_mode": SCALE_MODE,
-        "target_image_name": TARGET_IMAGE_NAME,
+        "target_id": target_config["target_id"],
+        "target_image_name": target_config["target_image_name"],
         "analysis": analysis,
         "led": {
             "width_mm": LED_WIDTH_MM,
@@ -166,14 +166,15 @@ def autosize(analysis):
         "planner": {
             "centerline_min_stroke_mm": max(20.0, LED_WIDTH_MM * 2.0),
             "centerline_max_strokes": 9,
-            "min_bend_radius_mm": 120.0,
-            "twist_length_for_90_deg_mm": 320.0,
-            "connector_escape_margin_mm": 80.0,
-            "backstage_connector_samples": 96,
-            "backstage_side_sway_mm": round(max(target_width * 0.20, 70.0) / 5.0) * 5.0,
-            "backstage_vertical_sway_mm": round(max(target_height * 0.24, 45.0) / 5.0) * 5.0,
+            "min_bend_radius_mm": 180.0,
+            "twist_length_for_90_deg_mm": 520.0,
+            "connector_escape_margin_mm": 35.0,
+            "backstage_connector_samples": 112,
+            "backstage_side_sway_mm": round(max(target_width * 0.34, 115.0) / 5.0) * 5.0,
+            "backstage_vertical_sway_mm": round(max(target_height * 0.52, 95.0) / 5.0) * 5.0,
             "backstage_depth_bias": 0.82,
             "backstage_depth_swing": 0.14,
+            "backstage_tangle_loops": 2,
             "closed_loop": True,
         },
     }
@@ -181,15 +182,16 @@ def autosize(analysis):
 
 def main():
     project_root = get_project_root()
-    image_path = project_root / "input" / TARGET_IMAGE_NAME
+    target_config = load_target_config(project_root)
+    image_path = project_root / "input" / target_config["target_image_name"]
     if not image_path.exists():
         raise FileNotFoundError(f"Missing target image: {image_path}")
     output_dir = project_root / "output" / "debug"
     output_dir.mkdir(parents=True, exist_ok=True)
 
     analysis = analyze_target(image_path)
-    config = autosize(analysis)
-    output_path = output_dir / OUTPUT_JSON_NAME
+    config = autosize(analysis, target_config)
+    output_path = output_dir / target_output_name(project_root, "autosize_config")
     output_path.write_text(json.dumps(config, indent=2), encoding="utf-8")
 
     print("")

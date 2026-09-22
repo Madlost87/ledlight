@@ -1,14 +1,14 @@
 {
   "source": "ANAMORPHIC_LAMP scripts/08_optimizer.py",
   "status": "initial pass-through optimization",
-  "path_point_count": 2748,
-  "frame_count": 2748,
-  "path_length_mm": 6921.649344515511,
+  "path_point_count": 2191,
+  "frame_count": 2191,
+  "path_length_mm": 6296.436140084646,
   "quality_score_0_1": 0.0,
   "score_inputs": {
-    "twist_metric_deg": 8.669431901223893,
-    "curvature_metric_1_per_mm": 0.07385464808658028,
-    "camera_visual_score_0_1": 0.826696038410492
+    "twist_metric_deg": 12.394333621698292,
+    "curvature_metric_1_per_mm": 0.09651609732747585,
+    "camera_visual_score_0_1": 0.8423790930106281
   },
   "camera_evaluation_available": true,
   "notes": [

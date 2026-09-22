@@ -5,7 +5,7 @@ from pathlib import Path
 import bpy
 from mathutils import Vector
 
-from al_config import load_autosize_config, nested_get
+from al_config import load_autosize_config, nested_get, target_output_name
 
 # ============================================================
 # ANAMORPHIC LAMP
@@ -13,8 +13,6 @@ from al_config import load_autosize_config, nested_get
 # ============================================================
 
 PROJECT_COLLECTION = "ANAMORPHIC_LAMP"
-INPUT_JSON_NAME = "camera_projection_LOVE.json"
-OUTPUT_JSON_NAME = "depth_candidates_LOVE.json"
 DEBUG_OBJECT_NAME = "AL_DEPTH_CANDIDATES"
 
 LAMP_WIDTH = 320.0
@@ -67,7 +65,7 @@ def remove_existing_object(name):
 
 
 def load_projection_data(project_root):
-    input_path = project_root / "output" / "debug" / INPUT_JSON_NAME
+    input_path = project_root / "output" / "debug" / target_output_name(project_root, "camera_projection")
     if not input_path.exists():
         raise FileNotFoundError(
             f"Projection data not found: {input_path}. Run scripts/02_camera_projection.py first."
@@ -216,7 +214,7 @@ def create_candidate_debug_mesh(candidates, debug_collection):
 
 
 def write_depth_json(project_root, projection_path, bounds, candidates, rejected):
-    output_path = project_root / "output" / "debug" / OUTPUT_JSON_NAME
+    output_path = project_root / "output" / "debug" / target_output_name(project_root, "depth_candidates")
     payload = {
         "source": "ANAMORPHIC_LAMP scripts/03_depth_solver.py",
         "input_projection_data": str(projection_path),

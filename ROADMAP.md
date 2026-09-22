@@ -204,23 +204,165 @@ as a few large clean arcs, not as an intentional rear tangle. The next design
 step is a compact `tangle_cloud` connector mode: fewer elegant perimeter arcs,
 more dense looped rear motion behind the readable target.
 
+### Structured Tangle Cloud Pass
+
+Implemented a structured `tangle_cloud` connector mode. Hidden connectors no
+longer route around the target with large clean arcs; they now pass through
+distributed rear tangle pockets using loop/figure-eight motion, alternating
+depth, and camera-ray bounds clamping.
+
+Important behavior change:
+
+- Backstage points keep their hidden/frontness intent even if their projection
+  falls over the white target mask. This prevents the rear tangle from becoming
+  part of the camera-readable LED word.
+- The first compact-tangle attempt was too dense and unreadable from the back
+  view. It was replaced with fewer loop samples, wider side/vertical spread,
+  and three distributed tangle pockets.
+- The profile is now an actual closed loop: the final path point returns to the
+  first point, the closing segment is sampled smoothly, and both the body
+  preview and LED preview report `closed_loop: true`.
+
+Current generated metrics:
+
+- Path points: `2193`
+- Path length: `6426.89 mm`
+- Backstage weighted length: `4864.77 mm`
+- Readable weighted length: `1562.12 mm`
+- Backstage route model: `compact rear tangle cloud connectors`
+- Backstage connector samples: `112`
+- Backstage side sway: `125.0 mm`
+- Backstage vertical sway: `95.0 mm`
+- Backstage tangle loops: `2`
+- Camera visual score: `0.848`
+- Camera coverage: `0.883`
+- Camera precision: `0.947`
+- Camera IoU: `0.841`
+- Overdraw: `0.054`
+- Out of bounds points: `0`
+- Clearance violations: `2500`
+- Minimum non-local clearance: `0.536 mm`
+- Maximum segment length: `5.41 mm`
+- Validation passed: `False`
+
+This is a better balance than the first tangle attempt: the hidden route is
+still dominant, the camera view remains clean, and the rear shape is less
+compressed. It still needs visual approval from back/side views before the next
+technical step, which is a tangle-aware clearance/separation pass.
+
+### Sinuous Curve And Torsion Pass
+
+The structured tangle/loop baseline was visually promising but still too tense:
+some curves and LED/profile torsions read as abrupt. This pass keeps the same
+closed-loop tangle concept and softens the motion.
+
+Implemented changes:
+
+- Increased target minimum bend radius from `120 mm` to `180 mm`.
+- Increased 90-degree twist length from `320 mm` to `520 mm`.
+- Reduced camera-frame attraction and increased frame smoothing.
+- Added cyclic loop-aware tangents/curvature for orientation frames, so the
+  closed loop is not treated like an open path at the seam.
+- Added sinuous closed-loop smoothing: stronger on hidden/backstage sections,
+  light on readable sections.
+- Added an anti-spike smoother for tiny local reversals that create harsh
+  visible kinks.
+
+Current generated metrics:
+
+- Path points: `2191`
+- Path length: `6288.52 mm`
+- Camera visual score: `0.844`
+- Camera coverage: `0.879`
+- Camera precision: `0.947`
+- Camera IoU: `0.838`
+- Overdraw: `0.053`
+- Out of bounds points: `0`
+- Profile/LED closed loop: `true`
+- Maximum segment length: `5.40 mm`
+- Max twist: `47.07 deg`
+- P95 twist: `12.39 deg`
+- Max curvature: `11.645 1/mm`
+- P95 curvature: `0.097 1/mm`
+- P95 radius: `10.36 mm`
+- Clearance violations: `2514`
+- Minimum non-local clearance: `0.352 mm`
+- Validation passed: `False`
+
+This is the preferred baseline for visual inspection now: still a closed
+structured groviglio, but with softer movement and fewer abrupt torsion/curve
+events. The next physical step remains self-clearance separation.
+
+Clearance note:
+
+- A global final clearance pass after smoothing was tested. It reduced
+  collision count modestly, but it increased twist/curvature and damaged the
+  desired softness. It is currently disabled (`final_loop_clearance_cycles: 0`).
+  The next clearance solver should be local/zone-aware, not a broad global
+  depth push.
+
+### Left Letter Readability Restore
+
+The `L` in `LOVE` was weaker than the other letters after the sinuous/groviglio
+pass. A targeted restore now finds the leftmost large white component in the
+target image and raises frontness only for nearby points that still fit the
+target mask. This keeps the correction image-driven instead of manually tuned to
+the word `LOVE`.
+
+Current generated metrics after restore:
+
+- Path points: `2191`
+- Path length: `6296.44 mm`
+- Left component restore nodes: `114`
+- Camera visual score: `0.842`
+- Camera coverage: `0.893`
+- Camera precision: `0.919`
+- Camera IoU: `0.828`
+- Overdraw: `0.081`
+- Per-letter coverage: `L 0.886`, `O 0.930`, `V 0.880`, `E 0.866`
+- Profile/LED closed loop: `true`
+- Clearance violations: `2514`
+- Minimum non-local clearance: `0.352 mm`
+- Validation passed: `False`
+
+This trades a little extra overdraw for a much clearer first letter while
+keeping the closed-loop groviglio and soft-curve work intact.
+
+### Target Config Plumbing
+
+Target image selection is now centralized in `input/target_config.json`.
+Pipeline scripts derive the active image name, target id, output JSON/TXT names,
+export manifest name, and readable preview object name from that config.
+
+Current config:
+
+```json
+{
+  "target_id": "LOVE",
+  "target_image_name": "target_LOVE.png"
+}
+```
+
+This means changing the image no longer requires hunting through script
+constants. The geometry and style algorithms are still only partially generic:
+difficult logos may need future config-level controls for stroke selection,
+tangle density, and readability restoration.
+
 ## Work Plan
 
 1. Stabilize the project baseline and documentation.
-2. Replace the current backstage connector arcs with a compact rear tangle
-   cloud that looks sculptural from non-camera views.
-3. Make the target image/name fully configurable so future images do not
-   require manual script edits.
-4. Reduce self-clearance violations in the 3D path while preserving the camera
-   projection.
-5. Turn `scripts/08_optimizer.py` from pass-through scoring into a real
+2. Visually inspect the compact rear `tangle_cloud` baseline from side and
+   three-quarter views.
+3. Add a tangle-aware clearance solver that separates apparent crossings in
+   depth without destroying the groviglio look or camera projection.
+4. Turn `scripts/08_optimizer.py` from pass-through scoring into a real
    optimization step that adjusts depth and transitions.
-6. Improve transition smoothness and minimum bend radius so the swept profile is
+5. Improve transition smoothness and minimum bend radius so the swept profile is
    physically plausible.
-7. Regenerate the Blender preview and exports after each solver change.
-8. Keep camera readability above an agreed threshold while improving
+6. Regenerate the Blender preview and exports after each solver change.
+7. Keep camera readability above an agreed threshold while improving
    manufacturability.
-9. Produce a final manufacturing mesh/export once validation passes.
+8. Produce a final manufacturing mesh/export once validation passes.
 
 ## Acceptance Targets
 

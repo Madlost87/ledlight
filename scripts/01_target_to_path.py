@@ -2,14 +2,13 @@ from pathlib import Path
 
 import bpy
 
-from al_config import load_autosize_config, nested_get
+from al_config import get_target_image_name, load_autosize_config, nested_get
 
 # ============================================================
 # ANAMORPHIC LAMP
 # STEP 01 - TARGET IMAGE TO VISUAL REFERENCE
 # ============================================================
 
-TARGET_IMAGE_NAME = "target_LOVE.png"
 TARGET_PHYSICAL_WIDTH = 260.0
 TARGET_OBJECT_NAME = "AL_TARGET_IMAGE"
 PROJECT_COLLECTION = "ANAMORPHIC_LAMP"
@@ -107,7 +106,8 @@ def create_target_material(image):
 def main():
     project_root = get_project_root()
     apply_autosize_config(project_root)
-    image_path = project_root / "input" / TARGET_IMAGE_NAME
+    target_image_name = get_target_image_name(project_root)
+    image_path = project_root / "input" / target_image_name
 
     print("")
     print("============================================")
@@ -120,7 +120,7 @@ def main():
     if not image_path.exists():
         raise FileNotFoundError(
             f"Target image not found: {image_path}. "
-            "Place target_LOVE.png in ANAMORPHIC_LAMP/input/ and rerun this script."
+            f"Place {target_image_name} in ANAMORPHIC_LAMP/input/ and rerun this script."
         )
 
     camera = bpy.data.objects.get("AL_CAMERA_MAIN")

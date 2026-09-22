@@ -4,14 +4,9 @@ from pathlib import Path
 import bpy
 from PIL import Image, ImageDraw
 
-from al_config import load_autosize_config, nested_get
+from al_config import get_target_image_name, load_autosize_config, nested_get, target_output_name
 
 PROJECT_COLLECTION = "ANAMORPHIC_LAMP"
-TARGET_IMAGE_NAME = "target_LOVE.png"
-PATH_JSON = "continuous_path_LOVE.json"
-LED_JSON = "led_channel_preview_LOVE.json"
-OUTPUT_JSON = "camera_evaluation_LOVE.json"
-OUTPUT_TXT = "camera_evaluation_LOVE.txt"
 OUTPUT_LED_MASK = "camera_eval_led_mask.png"
 OUTPUT_ERROR_MAP = "camera_eval_error_map.png"
 
@@ -185,9 +180,11 @@ def main():
     project_root = get_project_root()
     apply_autosize_config(project_root)
     debug_dir = project_root / "output" / "debug"
-    target = Image.open(project_root / "input" / TARGET_IMAGE_NAME).convert("L")
-    path_data = json.loads((debug_dir / PATH_JSON).read_text(encoding="utf-8"))
-    led_data = json.loads((debug_dir / LED_JSON).read_text(encoding="utf-8"))
+    target_image_name = get_target_image_name(project_root)
+    target_path = project_root / "input" / target_image_name
+    target = Image.open(target_path).convert("L")
+    path_data = json.loads((debug_dir / target_output_name(project_root, "continuous_path")).read_text(encoding="utf-8"))
+    led_data = json.loads((debug_dir / target_output_name(project_root, "led_channel_preview")).read_text(encoding="utf-8"))
     led_width_mm = float(led_data.get("led_width_mm", 10.0))
 
     led_mask, line_width_px, lit_segments = draw_led_projection(
@@ -205,7 +202,7 @@ def main():
     report = {
         "source": "ANAMORPHIC_LAMP scripts/13_camera_evaluation.py",
         "status": "diagnostic projection evaluation",
-        "target_image": str(project_root / "input" / TARGET_IMAGE_NAME),
+        "target_image": str(target_path),
         "path_mode": path_data.get("mode"),
         "led_width_mm": led_width_mm,
         "line_width_px": line_width_px,
@@ -229,8 +226,8 @@ def main():
         ],
     }
 
-    output_json = debug_dir / OUTPUT_JSON
-    output_txt = debug_dir / OUTPUT_TXT
+    output_json = debug_dir / target_output_name(project_root, "camera_evaluation")
+    output_txt = debug_dir / target_output_name(project_root, "camera_evaluation", "txt")
     output_json.write_text(json.dumps(report, indent=2), encoding="utf-8")
     output_txt.write_text(
         "\n".join(

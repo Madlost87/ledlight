@@ -4,9 +4,9 @@ from pathlib import Path
 import bpy
 from mathutils import Vector
 
+from al_config import target_output_name
+
 PROJECT_COLLECTION = "ANAMORPHIC_LAMP"
-INPUT_JSON_NAME = "orientation_frames_LOVE.json"
-OUTPUT_JSON_NAME = "secondary_light_LOVE.json"
 DEBUG_OBJECT_NAME = "AL_SECONDARY_NORMALS"
 NORMAL_STEP = 6
 NORMAL_SIZE = 12.0
@@ -62,7 +62,7 @@ def create_debug(frames, collection):
 
 def main():
     project_root = get_project_root()
-    input_path = project_root / "output" / "debug" / INPUT_JSON_NAME
+    input_path = project_root / "output" / "debug" / target_output_name(project_root, "orientation_frames")
     if not input_path.exists():
         raise FileNotFoundError(f"Missing {input_path}. Run step 05 first.")
     frames = json.loads(input_path.read_text(encoding="utf-8"))["frames"]
@@ -75,7 +75,7 @@ def main():
         "frame_count": len(frames),
         "debug_object": DEBUG_OBJECT_NAME,
     }
-    output_path = project_root / "output" / "debug" / OUTPUT_JSON_NAME
+    output_path = project_root / "output" / "debug" / target_output_name(project_root, "secondary_light")
     output_path.write_text(json.dumps(output, indent=2), encoding="utf-8")
     print("STEP 07 - SECONDARY LIGHT")
     print("Direction: DOWN")

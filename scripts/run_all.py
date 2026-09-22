@@ -67,6 +67,9 @@ def set_viewport_preview():
 
 
 def set_default_visibility():
+    from al_config import readable_preview_object_name
+
+    project_root = get_project_root()
     for name in (
         "AL_TARGET_IMAGE",
         "AL_PROJECTION_SAMPLES",
@@ -74,7 +77,7 @@ def set_default_visibility():
         "AL_DEPTH_CANDIDATES",
         "AL_ORIENTATION_FRAMES",
         "AL_SECONDARY_NORMALS",
-        "AL_READABLE_LOVE_PREVIEW",
+        readable_preview_object_name(project_root),
         "AL_CAMERA_READABILITY_PREVIEW",
     ):
         obj = bpy.data.objects.get(name)

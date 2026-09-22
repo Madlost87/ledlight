@@ -4,14 +4,12 @@ from pathlib import Path
 import bpy
 from mathutils import Vector
 
-from al_config import load_autosize_config, nested_get
+from al_config import load_autosize_config, nested_get, target_output_name
 
 PROJECT_COLLECTION = "ANAMORPHIC_LAMP"
 PATH_OBJECT_NAME = "AL_CONTINUOUS_PATH"
-FRAMES_JSON = "orientation_frames_LOVE.json"
 PREVIEW_OBJECT_NAME = "AL_PROFILE_PREVIEW"
 BASE_OBJECT_NAME = "AL_BASE_SOLID"
-OUTPUT_JSON = "profile_preview_LOVE.json"
 PROFILE_WIDTH = 15.0
 PROFILE_HEIGHT = 8.0
 BASE_DIAMETER = 165.0
@@ -68,7 +66,11 @@ def material(name, color):
 
 
 def read_frames(project_root):
-    data = json.loads((project_root / "output" / "debug" / FRAMES_JSON).read_text(encoding="utf-8"))
+    data = json.loads(
+        (project_root / "output" / "debug" / target_output_name(project_root, "orientation_frames")).read_text(
+            encoding="utf-8"
+        )
+    )
     return [
         {
             "point": Vector(frame["point_world_mm"]),
@@ -170,7 +172,7 @@ def main():
         "base_object": BASE_OBJECT_NAME,
         "final_mesh_created": False,
     }
-    output_path = project_root / "output" / "debug" / OUTPUT_JSON
+    output_path = project_root / "output" / "debug" / target_output_name(project_root, "profile_preview")
     output_path.write_text(json.dumps(output, indent=2), encoding="utf-8")
     print("STEP 10 - BUILD PROFILE")
     print("Created product preview body and base.")

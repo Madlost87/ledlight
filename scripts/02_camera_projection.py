@@ -4,6 +4,8 @@ from pathlib import Path
 import bpy
 from mathutils import Vector
 
+from al_config import target_output_name
+
 # ============================================================
 # ANAMORPHIC LAMP
 # STEP 02 - CAMERA PROJECTION
@@ -197,7 +199,7 @@ def create_debug_ray_mesh(samples, camera, debug_collection):
 def write_projection_json(project_root, data, camera):
     debug_dir = project_root / "output" / "debug"
     debug_dir.mkdir(parents=True, exist_ok=True)
-    output_path = debug_dir / "camera_projection_LOVE.json"
+    output_path = debug_dir / target_output_name(project_root, "camera_projection")
 
     payload = {
         "source": "ANAMORPHIC_LAMP scripts/02_camera_projection.py",

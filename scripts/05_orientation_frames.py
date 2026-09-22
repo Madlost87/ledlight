@@ -5,18 +5,16 @@ from pathlib import Path
 import bpy
 from mathutils import Vector
 
-from al_config import load_autosize_config, nested_get
+from al_config import load_autosize_config, nested_get, target_output_name
 
 PROJECT_COLLECTION = "ANAMORPHIC_LAMP"
-INPUT_JSON_NAME = "continuous_path_LOVE.json"
-OUTPUT_JSON_NAME = "orientation_frames_LOVE.json"
 DEBUG_OBJECT_NAME = "AL_ORIENTATION_FRAMES"
 FRAME_STEP = 3
 FRAME_SIZE = 9.0
-CAMERA_ATTRACTION = 0.22
-TWIST_LENGTH_FOR_90_DEG_MM = 320.0
-FRAME_SMOOTHING_PASSES = 8
-FRAME_SMOOTHING_WEIGHT = 0.34
+CAMERA_ATTRACTION = 0.18
+TWIST_LENGTH_FOR_90_DEG_MM = 520.0
+FRAME_SMOOTHING_PASSES = 12
+FRAME_SMOOTHING_WEIGHT = 0.30
 DEFAULT_CAMERA_LOCATION = Vector((0.0, -1050.0, 175.0))
 
 
@@ -62,7 +60,7 @@ def safe_normalize(vector, fallback):
 
 
 def read_points(project_root):
-    input_path = project_root / "output" / "debug" / INPUT_JSON_NAME
+    input_path = project_root / "output" / "debug" / target_output_name(project_root, "continuous_path")
     if not input_path.exists():
         raise FileNotFoundError(f"Missing {input_path}. Run step 04 first.")
     data = json.loads(input_path.read_text(encoding="utf-8"))
@@ -87,9 +85,14 @@ def build_frames(points, front_facing):
     frames = []
     previous_n = None
     previous_t = None
+    closed_loop = len(points) > 3 and (points[0] - points[-1]).length < 1.5
 
     for index, point in enumerate(points):
-        if index == 0:
+        if closed_loop:
+            previous_index = index - 1 if index > 0 else len(points) - 2
+            next_index = index + 1 if index < len(points) - 1 else 1
+            tangent = points[next_index] - points[previous_index]
+        elif index == 0:
             tangent = points[1] - point
         elif index == len(points) - 1:
             tangent = point - points[index - 1]
@@ -145,18 +148,29 @@ def build_frames(points, front_facing):
 
 
 def recompute_frame_metrics(frames):
+    closed_loop = (
+        len(frames) > 3
+        and (Vector(frames[0]["point_world_mm"]) - Vector(frames[-1]["point_world_mm"])).length < 1.5
+    )
     for index, frame in enumerate(frames):
         point = Vector(frame["point_world_mm"])
         tangent = Vector(frame["T"]).normalized()
         normal = Vector(frame["N"]).normalized()
         binormal = safe_normalize(tangent.cross(normal), Vector((0.0, 0.0, 1.0)))
         normal = safe_normalize(binormal.cross(tangent), normal)
+        if index > 0:
+            previous_normal = Vector(frames[index - 1]["N"]).normalized()
+            if normal.dot(previous_normal) < 0.0:
+                normal.negate()
+                binormal = safe_normalize(tangent.cross(normal), binormal)
         frame["N"] = [normal.x, normal.y, normal.z]
         frame["B"] = [binormal.x, binormal.y, binormal.z]
 
-        if 0 < index < len(frames) - 1:
-            previous_point = Vector(frames[index - 1]["point_world_mm"])
-            next_point = Vector(frames[index + 1]["point_world_mm"])
+        if closed_loop or 0 < index < len(frames) - 1:
+            previous_index = index - 1 if index > 0 else len(frames) - 2
+            next_index = index + 1 if index < len(frames) - 1 else 1
+            previous_point = Vector(frames[previous_index]["point_world_mm"])
+            next_point = Vector(frames[next_index]["point_world_mm"])
             prev_t = safe_normalize(point - previous_point, tangent)
             next_t = safe_normalize(next_point - point, tangent)
             span = max((next_point - previous_point).length, 1e-6)
@@ -229,7 +243,7 @@ def main():
     frames = smooth_frame_normals(frames, FRAME_SMOOTHING_PASSES)
     create_debug(frames, get_debug_collection())
 
-    output_path = project_root / "output" / "debug" / OUTPUT_JSON_NAME
+    output_path = project_root / "output" / "debug" / target_output_name(project_root, "orientation_frames")
     output_path.write_text(
         json.dumps(
             {
