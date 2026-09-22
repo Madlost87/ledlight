@@ -1,0 +1,18 @@
+{
+  "source": "ANAMORPHIC_LAMP scripts/08_optimizer.py",
+  "status": "initial pass-through optimization",
+  "path_point_count": 1672,
+  "frame_count": 1672,
+  "path_length_mm": 2358.952650929451,
+  "quality_score_0_1": 0.0,
+  "score_inputs": {
+    "twist_metric_deg": 11.613724108062229,
+    "curvature_metric_1_per_mm": 0.1237116736718653,
+    "camera_visual_score_0_1": 0.7944208326108537
+  },
+  "camera_evaluation_available": true,
+  "notes": [
+    "This pass preserves P(s).",
+    "Future optimizer should adjust depth and transitions to improve score."
+  ]
+}

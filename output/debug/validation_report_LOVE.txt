@@ -1,0 +1,10 @@
+ANAMORPHIC_LAMP validation
+passed: False
+points: 1672
+out_of_bounds: 0
+clearance_passed: False
+clearance_violations: 2648
+min_nonlocal_distance_mm: 0.2912386642168203
+max_segment_mm: 17.08
+path_length_mm: 2358.95
+quality_score: 0.000

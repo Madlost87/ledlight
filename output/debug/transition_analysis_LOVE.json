@@ -1,0 +1,17 @@
+{
+  "source": "ANAMORPHIC_LAMP scripts/06_transition_solver.py",
+  "input_frames": "/home/denny/ANAMORPHIC_LAMP/output/debug/orientation_frames_LOVE.json",
+  "frame_count": 1672,
+  "max_twist_deg": 53.21501127647192,
+  "p95_twist_deg": 11.613724108062229,
+  "avg_twist_deg": 3.24718780095553,
+  "max_curvature_1_per_mm": 6.034337766793843,
+  "p95_curvature_1_per_mm": 0.1237116736718653,
+  "min_radius_from_max_curvature_mm": 0.16571826746306226,
+  "p95_radius_mm": 8.083311544651922,
+  "status": "initial analysis only",
+  "notes": [
+    "No abrupt section rotation is applied.",
+    "Future solver should reduce high twist and curvature by moving points/depth."
+  ]
+}

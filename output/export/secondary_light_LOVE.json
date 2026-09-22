@@ -1,0 +1,7 @@
+{
+  "source": "ANAMORPHIC_LAMP scripts/07_secondary_light.py",
+  "lamp_type": "TABLE",
+  "secondary_light_direction": "DOWN",
+  "frame_count": 1672,
+  "debug_object": "AL_SECONDARY_NORMALS"
+}

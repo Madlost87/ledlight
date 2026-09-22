@@ -1,0 +1,18 @@
+{
+  "source": "ANAMORPHIC_LAMP scripts/11_led_channel.py",
+  "status": "product preview",
+  "led_width_mm": 10.0,
+  "led_thickness_mm": 3.0,
+  "led_offset_mm": 4.75,
+  "twist_transition_mm": 150.0,
+  "continuous_led_length_mm": 2358.448880833007,
+  "object": "AL_LED_CHANNEL_PREVIEW",
+  "continuous_led_profile": true,
+  "closed_loop": true,
+  "front_facing_nodes": 862,
+  "led_power_model": "always_on",
+  "front_facing_rule": "The LED is always on; it becomes visible from camera where the profile twists its luminous face toward the target mask.",
+  "camera_readable_object": "AL_READABLE_LOVE_PREVIEW",
+  "camera_readability_preview": "AL_CAMERA_READABILITY_PREVIEW",
+  "camera_readability_tiles": 523
+}

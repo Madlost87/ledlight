@@ -1,0 +1,138 @@
+{
+  "source": "ANAMORPHIC_LAMP scripts/13_camera_evaluation.py",
+  "status": "diagnostic projection evaluation",
+  "target_image": "/home/denny/ANAMORPHIC_LAMP/input/target_LOVE.png",
+  "path_mode": "skeleton_branch_single_profile",
+  "led_width_mm": 10.0,
+  "line_width_px": 32,
+  "lit_segments": 862,
+  "visual_score_0_1": 0.7944208326108537,
+  "metrics": {
+    "target_area_px": 76947,
+    "led_area_px": 77429,
+    "true_positive_px": 67198,
+    "false_positive_px": 10231,
+    "false_negative_px": 9749,
+    "true_negative_px": 632822,
+    "coverage_0_1": 0.8733024029526817,
+    "precision_0_1": 0.867866045021891,
+    "overdraw_0_1": 0.13213395497810898,
+    "missing_0_1": 0.12669759704731828,
+    "iou_0_1": 0.7708137374108146
+  },
+  "threshold_sweep": [
+    {
+      "fit_threshold": 0.24,
+      "visual_score_0_1": 0.7944208326108537,
+      "coverage_0_1": 0.8733024029526817,
+      "precision_0_1": 0.867866045021891,
+      "overdraw_0_1": 0.13213395497810898,
+      "iou_0_1": 0.7708137374108146,
+      "lit_segments": 862
+    },
+    {
+      "fit_threshold": 0.28,
+      "visual_score_0_1": 0.7944208326108537,
+      "coverage_0_1": 0.8733024029526817,
+      "precision_0_1": 0.867866045021891,
+      "overdraw_0_1": 0.13213395497810898,
+      "iou_0_1": 0.7708137374108146,
+      "lit_segments": 862
+    },
+    {
+      "fit_threshold": 0.32,
+      "visual_score_0_1": 0.7944208326108537,
+      "coverage_0_1": 0.8733024029526817,
+      "precision_0_1": 0.867866045021891,
+      "overdraw_0_1": 0.13213395497810898,
+      "iou_0_1": 0.7708137374108146,
+      "lit_segments": 862
+    },
+    {
+      "fit_threshold": 0.34,
+      "visual_score_0_1": 0.7944208326108537,
+      "coverage_0_1": 0.8733024029526817,
+      "precision_0_1": 0.867866045021891,
+      "overdraw_0_1": 0.13213395497810898,
+      "iou_0_1": 0.7708137374108146,
+      "lit_segments": 862
+    },
+    {
+      "fit_threshold": 0.36,
+      "visual_score_0_1": 0.7944208326108537,
+      "coverage_0_1": 0.8733024029526817,
+      "precision_0_1": 0.867866045021891,
+      "overdraw_0_1": 0.13213395497810898,
+      "iou_0_1": 0.7708137374108146,
+      "lit_segments": 862
+    },
+    {
+      "fit_threshold": 0.38,
+      "visual_score_0_1": 0.794147318317029,
+      "coverage_0_1": 0.8728345484554304,
+      "precision_0_1": 0.8681747673216132,
+      "overdraw_0_1": 0.13182523267838675,
+      "iou_0_1": 0.770692523954329,
+      "lit_segments": 860
+    },
+    {
+      "fit_threshold": 0.42,
+      "visual_score_0_1": 0.7940932556249215,
+      "coverage_0_1": 0.8727695686641455,
+      "precision_0_1": 0.8681886933926286,
+      "overdraw_0_1": 0.1318113066073714,
+      "iou_0_1": 0.7706528349953524,
+      "lit_segments": 859
+    },
+    {
+      "fit_threshold": 0.46,
+      "visual_score_0_1": 0.792989133879448,
+      "coverage_0_1": 0.8716909041288159,
+      "precision_0_1": 0.8680471075449722,
+      "overdraw_0_1": 0.13195289245502784,
+      "iou_0_1": 0.7697003775403647,
+      "lit_segments": 858
+    },
+    {
+      "fit_threshold": 0.5,
+      "visual_score_0_1": 0.7922548622337485,
+      "coverage_0_1": 0.870937138549911,
+      "precision_0_1": 0.8680154392145688,
+      "overdraw_0_1": 0.1319845607854312,
+      "iou_0_1": 0.769087758357529,
+      "lit_segments": 857
+    },
+    {
+      "fit_threshold": 0.55,
+      "visual_score_0_1": 0.7917717857267597,
+      "coverage_0_1": 0.8703133325535758,
+      "precision_0_1": 0.8682146422413234,
+      "overdraw_0_1": 0.13178535775867656,
+      "iou_0_1": 0.7687574616585545,
+      "lit_segments": 855
+    },
+    {
+      "fit_threshold": 0.6,
+      "visual_score_0_1": 0.7912661875034814,
+      "coverage_0_1": 0.8698194861398105,
+      "precision_0_1": 0.8681496854530125,
+      "overdraw_0_1": 0.13185031454698748,
+      "iou_0_1": 0.7683212416199835,
+      "lit_segments": 854
+    }
+  ],
+  "recommended_fit_threshold": 0.24,
+  "outputs": {
+    "led_mask": "/home/denny/ANAMORPHIC_LAMP/output/debug/camera_eval_led_mask.png",
+    "error_map": "/home/denny/ANAMORPHIC_LAMP/output/debug/camera_eval_error_map.png"
+  },
+  "legend": {
+    "error_map_white": "target and LED overlap",
+    "error_map_red": "LED outside target",
+    "error_map_blue": "target not covered by LED"
+  },
+  "limits": [
+    "This is a camera-projection diagnostic, not a full Blender light transport render.",
+    "It accounts for LED width in camera projection but not yet self-shadowing or material bloom."
+  ]
+}

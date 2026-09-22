@@ -1,0 +1,25 @@
+{
+  "source": "ANAMORPHIC_LAMP scripts/12_export.py",
+  "blend_file": "/home/denny/ANAMORPHIC_LAMP/blender/anamorphic_lamp.blend",
+  "copied_count": 15,
+  "missing_count": 0,
+  "copied": [
+    "/home/denny/ANAMORPHIC_LAMP/output/export/camera_projection_LOVE.json",
+    "/home/denny/ANAMORPHIC_LAMP/output/export/depth_candidates_LOVE.json",
+    "/home/denny/ANAMORPHIC_LAMP/output/export/continuous_path_LOVE.json",
+    "/home/denny/ANAMORPHIC_LAMP/output/export/orientation_frames_LOVE.json",
+    "/home/denny/ANAMORPHIC_LAMP/output/export/transition_analysis_LOVE.json",
+    "/home/denny/ANAMORPHIC_LAMP/output/export/secondary_light_LOVE.json",
+    "/home/denny/ANAMORPHIC_LAMP/output/export/optimized_solution_LOVE.json",
+    "/home/denny/ANAMORPHIC_LAMP/output/export/validation_report_LOVE.json",
+    "/home/denny/ANAMORPHIC_LAMP/output/export/validation_report_LOVE.txt",
+    "/home/denny/ANAMORPHIC_LAMP/output/export/profile_preview_LOVE.json",
+    "/home/denny/ANAMORPHIC_LAMP/output/export/led_channel_preview_LOVE.json",
+    "/home/denny/ANAMORPHIC_LAMP/output/export/camera_evaluation_LOVE.json",
+    "/home/denny/ANAMORPHIC_LAMP/output/export/camera_evaluation_LOVE.txt",
+    "/home/denny/ANAMORPHIC_LAMP/output/export/camera_eval_led_mask.png",
+    "/home/denny/ANAMORPHIC_LAMP/output/export/camera_eval_error_map.png"
+  ],
+  "missing": [],
+  "note": "No final manufacturing mesh is exported yet."
+}

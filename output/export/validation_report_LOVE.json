@@ -1,0 +1,15 @@
+{
+  "source": "ANAMORPHIC_LAMP scripts/09_validation.py",
+  "passed": false,
+  "point_count": 1672,
+  "out_of_bounds_count": 0,
+  "clearance_passed": false,
+  "self_clearance": {
+    "min_nonlocal_distance_mm": 0.2912386642168203,
+    "clearance_violation_count": 2648,
+    "clearance_threshold_mm": 20.0
+  },
+  "max_segment_length_mm": 17.081626893410295,
+  "path_length_mm": 2358.952650929451,
+  "optimizer_quality_score_0_1": 0.0
+}
