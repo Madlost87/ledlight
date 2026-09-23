@@ -13,11 +13,13 @@ SCRIPT_ORDER = (
     "04_continuous_path.py",
     "05_orientation_frames.py",
     "06_transition_solver.py",
+    "08_optimizer.py",
+    "05_orientation_frames.py",
+    "06_transition_solver.py",
     "07_secondary_light.py",
     "10_build_profile.py",
     "11_led_channel.py",
     "13_camera_evaluation.py",
-    "08_optimizer.py",
     "09_validation.py",
     "12_export.py",
 )
@@ -77,6 +79,8 @@ def set_default_visibility():
         "AL_DEPTH_CANDIDATES",
         "AL_ORIENTATION_FRAMES",
         "AL_SECONDARY_NORMALS",
+        "AL_CLEARANCE_HOTSPOTS",
+        "AL_CURVATURE_HOTSPOTS",
         readable_preview_object_name(project_root),
         "AL_CAMERA_READABILITY_PREVIEW",
     ):

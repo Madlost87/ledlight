@@ -1,16 +1,20 @@
 ANAMORPHIC_LAMP validation
 passed: False
-points: 2191
+points: 2525
 out_of_bounds: 0
 clearance_passed: False
-clearance_violations: 2514
-min_nonlocal_distance_mm: 0.35160404529400574
+bend_radius_passed: False
+bend_radius_target_mm: 180.0
+bend_radius_violations: 859
+p95_radius_mm: 19.88534448872598
+clearance_violations: 277
+min_nonlocal_distance_mm: 1.4380153097290629
 top_clearance_hotspots:
-  1800-1899 vs 2000-2099: 466
-  700-799 vs 1100-1199: 274
-  700-799 vs 1000-1099: 247
-  1600-1699 vs 2000-2099: 246
-  400-499 vs 1300-1399: 192
-max_segment_mm: 5.40
-path_length_mm: 6296.44
-quality_score: 0.000
+  1100-1199 vs 1300-1399: 126
+  1200-1299 vs 1300-1399: 50
+  1000-1099 vs 1700-1799: 45
+  800-899 vs 1200-1299: 28
+  1100-1199 vs 1400-1499: 17
+max_segment_mm: 6.10
+path_length_mm: 7775.04
+quality_score: 0.284

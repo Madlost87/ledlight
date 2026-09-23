@@ -3,7 +3,7 @@ import math
 from pathlib import Path
 
 import bpy
-from mathutils import Vector
+from mathutils import Quaternion, Vector
 
 from al_config import load_autosize_config, nested_get, target_output_name
 
@@ -185,19 +185,58 @@ def recompute_frame_metrics(frames):
             frame["twist_deg_from_previous"] = math.degrees(previous_normal.angle(normal, 0.0))
 
 
+def close_loop_frame_twist(frames):
+    if len(frames) < 5:
+        return frames, 0.0
+    if (Vector(frames[0]["point_world_mm"]) - Vector(frames[-1]["point_world_mm"])).length >= 1.5:
+        return frames, 0.0
+
+    unique_frames = [dict(frame) for frame in frames[:-1]]
+    first_tangent = Vector(unique_frames[0]["T"]).normalized()
+    first_normal = Vector(unique_frames[0]["N"]).normalized()
+    last_normal = Vector(unique_frames[-1]["N"]).normalized()
+    last_at_seam = last_normal - first_tangent * last_normal.dot(first_tangent)
+    last_at_seam = safe_normalize(last_at_seam, first_normal)
+    residual_angle = math.atan2(
+        first_tangent.dot(last_at_seam.cross(first_normal)),
+        max(-1.0, min(1.0, last_at_seam.dot(first_normal))),
+    )
+
+    denominator = max(len(unique_frames) - 1, 1)
+    for index, frame in enumerate(unique_frames):
+        tangent = Vector(frame["T"]).normalized()
+        normal = Vector(frame["N"]).normalized()
+        normal.rotate(Quaternion(tangent, residual_angle * index / denominator))
+        normal = safe_normalize(normal - tangent * normal.dot(tangent), normal)
+        binormal = safe_normalize(tangent.cross(normal), Vector((0.0, 0.0, 1.0)))
+        frame["N"] = [normal.x, normal.y, normal.z]
+        frame["B"] = [binormal.x, binormal.y, binormal.z]
+
+    closing_frame = dict(unique_frames[0])
+    closing_frame["index"] = frames[-1]["index"]
+    closing_frame["point_world_mm"] = list(frames[-1]["point_world_mm"])
+    unique_frames.append(closing_frame)
+    return unique_frames, math.degrees(residual_angle)
+
+
 def smooth_frame_normals(frames, passes):
     if len(frames) < 5:
         recompute_frame_metrics(frames)
         return frames
 
-    smoothed = [dict(frame) for frame in frames]
+    closed_loop = (
+        (Vector(frames[0]["point_world_mm"]) - Vector(frames[-1]["point_world_mm"])).length < 1.5
+    )
+    source_frames = frames[:-1] if closed_loop else frames
+    smoothed = [dict(frame) for frame in source_frames]
     for _ in range(passes):
         next_frames = [dict(frame) for frame in smoothed]
-        for index in range(1, len(smoothed) - 1):
+        indices = range(len(smoothed)) if closed_loop else range(1, len(smoothed) - 1)
+        for index in indices:
             tangent = Vector(smoothed[index]["T"]).normalized()
             current = Vector(smoothed[index]["N"]).normalized()
-            previous = Vector(smoothed[index - 1]["N"]).normalized()
-            following = Vector(smoothed[index + 1]["N"]).normalized()
+            previous = Vector(smoothed[(index - 1) % len(smoothed)]["N"]).normalized()
+            following = Vector(smoothed[(index + 1) % len(smoothed)]["N"]).normalized()
 
             if previous.dot(current) < 0.0:
                 previous.negate()
@@ -209,6 +248,12 @@ def smooth_frame_normals(frames, passes):
             averaged = safe_normalize(averaged, current)
             next_frames[index]["N"] = [averaged.x, averaged.y, averaged.z]
         smoothed = next_frames
+
+    if closed_loop:
+        closing_frame = dict(smoothed[0])
+        closing_frame["index"] = frames[-1]["index"]
+        closing_frame["point_world_mm"] = list(frames[-1]["point_world_mm"])
+        smoothed.append(closing_frame)
 
     recompute_frame_metrics(smoothed)
     return smoothed
@@ -240,6 +285,7 @@ def main():
     apply_autosize_config(project_root)
     input_path, points, front_facing = read_points(project_root)
     frames = build_frames(points, front_facing)
+    frames, loop_twist_correction_deg = close_loop_frame_twist(frames)
     frames = smooth_frame_normals(frames, FRAME_SMOOTHING_PASSES)
     create_debug(frames, get_debug_collection())
 
@@ -254,6 +300,7 @@ def main():
                 "front_facing_guided": True,
                 "frame_smoothing_passes": FRAME_SMOOTHING_PASSES,
                 "frame_smoothing_weight": FRAME_SMOOTHING_WEIGHT,
+                "loop_twist_correction_deg": loop_twist_correction_deg,
                 "frames": frames,
             },
             indent=2,

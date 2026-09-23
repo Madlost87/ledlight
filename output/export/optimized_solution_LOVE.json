@@ -1,18 +1,32 @@
 {
   "source": "ANAMORPHIC_LAMP scripts/08_optimizer.py",
-  "status": "initial pass-through optimization",
-  "path_point_count": 2191,
-  "frame_count": 2191,
-  "path_length_mm": 6296.436140084646,
-  "quality_score_0_1": 0.0,
-  "score_inputs": {
-    "twist_metric_deg": 12.394333621698292,
-    "curvature_metric_1_per_mm": 0.09651609732747585,
-    "camera_visual_score_0_1": 0.8423790930106281
+  "status": "curvature-constrained camera-ray optimization",
+  "path_point_count": 2525,
+  "path_length_mm": 7775.0431971130865,
+  "quality_score_0_1": 0.2842884172221865,
+  "projection_preserved": true,
+  "closed_loop": true,
+  "settings": {
+    "passes": 20,
+    "curvature_trigger_1_per_mm": 0.03,
+    "curvature_energy_cap_1_per_mm": 0.3,
+    "curvature_blend": 0.3,
+    "max_depth_move_per_pass_mm": 2.5,
+    "clearance_tolerance_ratio": 1.02
   },
-  "camera_evaluation_available": true,
+  "metrics": {
+    "accepted_passes": 20,
+    "initial_p95_curvature_1_per_mm": 0.0702633472737825,
+    "final_p95_curvature_1_per_mm": 0.05028829148858604,
+    "initial_max_curvature_1_per_mm": 0.5747050324697083,
+    "final_max_curvature_1_per_mm": 0.44721569299491354,
+    "initial_curvature_energy": 2.0920347239664587,
+    "final_curvature_energy": 0.8952288889397592,
+    "initial_clearance_proxy_conflicts": 211,
+    "final_clearance_proxy_conflicts": 217
+  },
   "notes": [
-    "This pass preserves P(s).",
-    "Future optimizer should adjust depth and transitions to improve score."
+    "Points move only along privileged-camera rays.",
+    "A pass is rejected if curvature energy does not improve or clearance exceeds tolerance."
   ]
 }

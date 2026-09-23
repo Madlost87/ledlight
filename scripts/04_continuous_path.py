@@ -54,11 +54,11 @@ CENTERLINE_DEPTH_LANES_MM = (-92.0, -64.0, -36.0, -12.0, 16.0, 44.0, 72.0, 96.0)
 CENTERLINE_CHAIKIN_PASSES = 5
 CENTERLINE_CONNECTOR_ESCAPE_MARGIN_MM = 60.0
 CENTERLINE_BACKSTAGE_CONNECTOR_SAMPLES = 96
-CENTERLINE_BACKSTAGE_SIDE_SWAY_MM = 90.0
-CENTERLINE_BACKSTAGE_VERTICAL_SWAY_MM = 85.0
+CENTERLINE_BACKSTAGE_SIDE_SWAY_MM = 145.0
+CENTERLINE_BACKSTAGE_VERTICAL_SWAY_MM = 115.0
 CENTERLINE_BACKSTAGE_DEPTH_BIAS = 0.86
 CENTERLINE_BACKSTAGE_DEPTH_SWING = 0.16
-CENTERLINE_BACKSTAGE_TANGLE_LOOPS = 3
+CENTERLINE_BACKSTAGE_TANGLE_LOOPS = 1
 CLOSED_LOOP_PATH = True
 DEPTH_CLEARANCE_MM = 28.0
 DEPTH_CLEARANCE_SKIP_NEIGHBORS = 70
@@ -76,7 +76,18 @@ SINUOUS_HIDDEN_SMOOTHING_WEIGHT = 0.24
 SINUOUS_DEPTH_SMOOTHING_WEIGHT = 0.30
 CURVATURE_SPIKE_SMOOTHING_PASSES = 5
 CURVATURE_SPIKE_SMOOTHING_WEIGHT = 0.48
+LOOP_JUNCTION_SMOOTHING_RADIUS_NODES = 60
+LOOP_JUNCTION_SMOOTHING_SPAN_NODES = 8
+LOOP_JUNCTION_SMOOTHING_PASSES = 7
+LOOP_JUNCTION_SMOOTHING_WEIGHT = 0.60
 FINAL_LOOP_CLEARANCE_CYCLES = 0
+ADAPTIVE_CLEARANCE_CYCLES = 8
+ADAPTIVE_CLEARANCE_MM = 20.0
+ADAPTIVE_CLEARANCE_BIN_NODES = 50
+ADAPTIVE_CLEARANCE_WINDOW_NODES = (95, 130, 180)
+ADAPTIVE_CLEARANCE_DEPTH_OFFSETS_MM = (-65.0, -45.0, 45.0, 65.0)
+ADAPTIVE_CLEARANCE_TOP_BINS = 10
+ADAPTIVE_CLEARANCE_CLOSEST_PAIRS = 6
 
 
 def apply_autosize_config(project_root):
@@ -706,14 +717,16 @@ def sample_tangle_cloud_connector(
     front_height = max(z_max - z_min, 1.0)
     center_x = (x_min + x_max) * 0.5
     center_z = (z_min + z_max) * 0.5
-    radius_x = min(max(CENTERLINE_BACKSTAGE_SIDE_SWAY_MM, front_width * 0.28), front_width * 0.48)
-    radius_z = min(max(CENTERLINE_BACKSTAGE_VERTICAL_SWAY_MM, front_height * 0.44), front_height * 0.66)
+    # The backstage route may use the full lamp volume. Limiting these radii
+    # to the target artwork was the main source of cramped, sharp loops.
+    radius_x = max(CENTERLINE_BACKSTAGE_SIDE_SWAY_MM, front_width * 0.28)
+    radius_z = max(CENTERLINE_BACKSTAGE_VERTICAL_SWAY_MM, front_height * 0.44)
     loop_count = max(1.5, CENTERLINE_BACKSTAGE_TANGLE_LOOPS + 0.5 * (connector_index % 2))
     phase = connector_index * 0.83
     cloud_offsets = (
-        (-0.42 * front_width, -0.18 * front_height),
-        (0.00 * front_width, 0.30 * front_height),
-        (0.42 * front_width, -0.12 * front_height),
+        (-0.72 * radius_x, -0.30 * radius_z),
+        (0.00, 0.48 * radius_z),
+        (0.72 * radius_x, -0.20 * radius_z),
     )
     start_lobe = connector_index % len(cloud_offsets)
     end_lobe = (connector_index + 1 + (connector_index % 2)) % len(cloud_offsets)
@@ -730,8 +743,9 @@ def sample_tangle_cloud_connector(
 
     for sample_index in range(1, CENTERLINE_BACKSTAGE_CONNECTOR_SAMPLES + 1):
         t = sample_index / CENTERLINE_BACKSTAGE_CONNECTOR_SAMPLES
-        envelope = math.sin(math.pi * t)
-        envelope = max(0.0, envelope) ** 0.72
+        # sin^2 has zero slope at both endpoints, so the hidden route leaves
+        # and rejoins each readable stroke without a visible kink.
+        envelope = max(0.0, math.sin(math.pi * t)) ** 2.0
         base_x = start[0] * (1.0 - t) + end[0] * t
         base_z = start[1] * (1.0 - t) + end[1] * t
         base_depth = start_depth * (1.0 - t) + end_depth * t
@@ -742,17 +756,17 @@ def sample_tangle_cloud_connector(
         lobe_z += math.sin(math.tau * t + phase) * radius_z * 0.20
         knot_x = (
             lobe_x
-            + math.sin(theta) * radius_x * 0.42
-            + math.sin(theta * 2.0 + phase * 0.7) * radius_x * 0.16
+            + math.sin(theta) * radius_x * 0.58
+            + math.sin(theta * 2.0 + phase * 0.7) * radius_x * 0.07
         )
         knot_z = (
             lobe_z
-            + math.sin(theta * 2.0 + math.pi * 0.25) * radius_z * 0.38
-            + math.cos(theta * 0.75 + phase) * radius_z * 0.18
+            + math.sin(theta + math.pi * 0.25) * radius_z * 0.54
+            + math.cos(theta * 0.5 + phase) * radius_z * 0.08
         )
         braid = math.sin(theta * 3.0 + connector_index)
         rear_depth = backstage_depth_value(connector_index, t)
-        rear_depth += braid * MAX_SCULPTURAL_DEPTH * CENTERLINE_BACKSTAGE_DEPTH_SWING * 0.48
+        rear_depth += braid * MAX_SCULPTURAL_DEPTH * CENTERLINE_BACKSTAGE_DEPTH_SWING * 0.22
         depth = blend_depth_toward_backstage(base_depth, rear_depth, envelope)
         x = base_x * (1.0 - envelope) + knot_x * envelope
         z = base_z * (1.0 - envelope) + knot_z * envelope
@@ -1597,6 +1611,138 @@ def project_target_point_to_depth(x_target, z_target, y_depth):
     return Vector((x_world, y_depth, z_world))
 
 
+def point_clearance_conflicts(front_points, depths, threshold):
+    count = len(depths)
+    projected = [
+        project_target_point_to_depth(front_points[index][0], front_points[index][1], depths[index])
+        for index in range(count)
+    ]
+    cells = defaultdict(list)
+    conflicts = []
+
+    for index, point in enumerate(projected):
+        cell = tuple(math.floor(point[axis] / threshold) for axis in range(3))
+        for dx in (-1, 0, 1):
+            for dy in (-1, 0, 1):
+                for dz in (-1, 0, 1):
+                    for other in cells.get((cell[0] + dx, cell[1] + dy, cell[2] + dz), ()):
+                        path_gap = abs(index - other)
+                        path_gap = min(path_gap, count - path_gap)
+                        if path_gap < DEPTH_CLEARANCE_SKIP_NEIGHBORS:
+                            continue
+                        distance = (point - projected[other]).length
+                        if distance < threshold:
+                            conflicts.append((other, index, distance))
+        cells[cell].append(index)
+
+    return conflicts
+
+
+def point_clearance_score(conflicts, threshold):
+    if not conflicts:
+        return 0.0, 0, threshold
+    energy = sum((threshold - conflict[2]) ** 2 for conflict in conflicts)
+    return energy, len(conflicts), min(conflict[2] for conflict in conflicts)
+
+
+def cyclic_depth_bump(depths, center, radius, offset):
+    count = len(depths)
+    result = list(depths)
+    for index in range(count):
+        path_gap = abs(index - center)
+        path_gap = min(path_gap, count - path_gap)
+        if path_gap >= radius:
+            continue
+        phase = path_gap / radius
+        weight = 0.5 * (1.0 + math.cos(math.pi * phase))
+        result[index] = clamp_value(
+            result[index] + offset * weight,
+            -MAX_SCULPTURAL_DEPTH,
+            MAX_SCULPTURAL_DEPTH,
+        )
+    return result
+
+
+def adaptive_tangle_clearance(front_points, _fractions, depths):
+    if depths is None or len(depths) < DEPTH_CLEARANCE_SKIP_NEIGHBORS * 2:
+        return depths, {}
+
+    closed = CLOSED_LOOP_PATH and math.dist(front_points[0], front_points[-1]) < RESAMPLE_STEP_MM * 2.0
+    unique_count = len(depths) - 1 if closed else len(depths)
+    work_points = list(front_points[:unique_count])
+    result = list(depths[:unique_count])
+    initial_conflicts = point_clearance_conflicts(work_points, result, ADAPTIVE_CLEARANCE_MM)
+    initial_score = point_clearance_score(initial_conflicts, ADAPTIVE_CLEARANCE_MM)
+    accepted_cycles = 0
+
+    for _ in range(ADAPTIVE_CLEARANCE_CYCLES):
+        conflicts = point_clearance_conflicts(work_points, result, ADAPTIVE_CLEARANCE_MM)
+        if not conflicts:
+            break
+
+        bin_count = int(math.ceil(unique_count / ADAPTIVE_CLEARANCE_BIN_NODES))
+        pressure = [0.0] * bin_count
+        for first, second, distance in conflicts:
+            weight = (ADAPTIVE_CLEARANCE_MM - distance) ** 2
+            pressure[first // ADAPTIVE_CLEARANCE_BIN_NODES] += weight
+            pressure[second // ADAPTIVE_CLEARANCE_BIN_NODES] += weight
+
+        ranked_bins = sorted(range(bin_count), key=lambda index: pressure[index], reverse=True)
+        candidate_bins = [
+            index
+            for index in ranked_bins[:ADAPTIVE_CLEARANCE_TOP_BINS]
+            if pressure[index] > 0.0
+        ]
+        closest = sorted(conflicts, key=lambda item: item[2])[:ADAPTIVE_CLEARANCE_CLOSEST_PAIRS]
+        for first, second, _distance in closest:
+            for index in (first, second):
+                bin_index = index // ADAPTIVE_CLEARANCE_BIN_NODES
+                if bin_index not in candidate_bins:
+                    candidate_bins.append(bin_index)
+
+        best_depths = result
+        best_score = point_clearance_score(conflicts, ADAPTIVE_CLEARANCE_MM)
+        for bin_index in candidate_bins:
+            center = min(
+                unique_count - 1,
+                bin_index * ADAPTIVE_CLEARANCE_BIN_NODES + ADAPTIVE_CLEARANCE_BIN_NODES // 2,
+            )
+            for radius in ADAPTIVE_CLEARANCE_WINDOW_NODES:
+                for offset in ADAPTIVE_CLEARANCE_DEPTH_OFFSETS_MM:
+                    candidate = cyclic_depth_bump(result, center, radius, offset)
+                    candidate_conflicts = point_clearance_conflicts(
+                        work_points,
+                        candidate,
+                        ADAPTIVE_CLEARANCE_MM,
+                    )
+                    candidate_score = point_clearance_score(candidate_conflicts, ADAPTIVE_CLEARANCE_MM)
+                    candidate_rank = (candidate_score[0], candidate_score[1], -candidate_score[2])
+                    best_rank = (best_score[0], best_score[1], -best_score[2])
+                    if candidate_rank < best_rank:
+                        best_depths = candidate
+                        best_score = candidate_score
+
+        if best_depths is result:
+            break
+        result = best_depths
+        accepted_cycles += 1
+
+    final_conflicts = point_clearance_conflicts(work_points, result, ADAPTIVE_CLEARANCE_MM)
+    final_score = point_clearance_score(final_conflicts, ADAPTIVE_CLEARANCE_MM)
+    if closed:
+        result.append(result[0])
+
+    stats = {
+        "adaptive_clearance_cycles": accepted_cycles,
+        "adaptive_clearance_proxy_initial_conflicts": initial_score[1],
+        "adaptive_clearance_proxy_final_conflicts": final_score[1],
+        "adaptive_clearance_proxy_initial_energy": initial_score[0],
+        "adaptive_clearance_proxy_final_energy": final_score[0],
+        "adaptive_clearance_proxy_min_distance_mm": final_score[2],
+    }
+    return result, stats
+
+
 def solve_projected_point_clearance(front_points, fractions, depths):
     if len(front_points) < 4 or depths is None:
         return depths
@@ -1830,6 +1976,97 @@ def smooth_curvature_spikes(front_points, fractions, depths):
     return points, fit_values, depth_values
 
 
+def loop_junction_angle(front_points, depths):
+    if len(front_points) < 4 or depths is None:
+        return 0.0
+    unique_count = len(front_points) - 1
+    world_points = [
+        project_target_point_to_depth(front_points[index][0], front_points[index][1], depths[index])
+        for index in (unique_count - 1, 0, 1)
+    ]
+    incoming = world_points[1] - world_points[0]
+    outgoing = world_points[2] - world_points[1]
+    if incoming.length < 1e-8 or outgoing.length < 1e-8:
+        return 0.0
+    return math.degrees(incoming.angle(outgoing, 0.0))
+
+
+def smooth_closed_loop_junction(front_points, fractions, depths):
+    closed = (
+        CLOSED_LOOP_PATH
+        and depths is not None
+        and len(front_points) > LOOP_JUNCTION_SMOOTHING_RADIUS_NODES * 2
+        and math.dist(front_points[0], front_points[-1]) < RESAMPLE_STEP_MM * 2.0
+    )
+    if not closed:
+        return front_points, fractions, depths, {}
+
+    points = [list(point) for point in front_points[:-1]]
+    original_points = [list(point) for point in points]
+    fit_values = list(fractions[:-1])
+    depth_values = list(depths[:-1])
+    count = len(points)
+    angle_before = loop_junction_angle(front_points, depths)
+
+    for _ in range(LOOP_JUNCTION_SMOOTHING_PASSES):
+        next_points = [list(point) for point in points]
+        next_fit_values = list(fit_values)
+        next_depth_values = list(depth_values)
+        for index in range(count):
+            path_gap = min(index, count - index)
+            if path_gap >= LOOP_JUNCTION_SMOOTHING_RADIUS_NODES:
+                continue
+            envelope = 0.5 * (
+                1.0
+                + math.cos(
+                    math.pi * path_gap / LOOP_JUNCTION_SMOOTHING_RADIUS_NODES
+                )
+            )
+            weight = LOOP_JUNCTION_SMOOTHING_WEIGHT * envelope
+            neighbors = [
+                (index + offset) % count
+                for offset in range(
+                    -LOOP_JUNCTION_SMOOTHING_SPAN_NODES,
+                    LOOP_JUNCTION_SMOOTHING_SPAN_NODES + 1,
+                )
+            ]
+            divisor = len(neighbors)
+            average_x = sum(points[item][0] for item in neighbors) / divisor
+            average_z = sum(points[item][1] for item in neighbors) / divisor
+            average_fit = sum(fit_values[item] for item in neighbors) / divisor
+            average_depth = sum(depth_values[item] for item in neighbors) / divisor
+            next_points[index][0] = points[index][0] * (1.0 - weight) + average_x * weight
+            next_points[index][1] = points[index][1] * (1.0 - weight) + average_z * weight
+            next_fit_values[index] = clamp_value(
+                fit_values[index] * (1.0 - weight) + average_fit * weight,
+                0.0,
+                1.0,
+            )
+            next_depth_values[index] = clamp_value(
+                depth_values[index] * (1.0 - weight) + average_depth * weight,
+                -MAX_SCULPTURAL_DEPTH,
+                MAX_SCULPTURAL_DEPTH,
+            )
+        points = next_points
+        fit_values = next_fit_values
+        depth_values = next_depth_values
+
+    max_front_shift = max(
+        math.dist(points[index], original_points[index])
+        for index in range(count)
+    )
+    points.append(list(points[0]))
+    fit_values.append(fit_values[0])
+    depth_values.append(depth_values[0])
+    stats = {
+        "loop_junction_angle_before_deg": angle_before,
+        "loop_junction_angle_after_deg": loop_junction_angle(points, depth_values),
+        "loop_junction_max_front_shift_mm": max_front_shift,
+        "loop_junction_smoothing_radius_nodes": LOOP_JUNCTION_SMOOTHING_RADIUS_NODES,
+    }
+    return [tuple(point) for point in points], fit_values, depth_values, stats
+
+
 def force_closed_loop(front_points, fractions, depths):
     if not CLOSED_LOOP_PATH or len(front_points) < 3:
         return front_points, fractions, depths
@@ -2031,6 +2268,8 @@ def main():
         "left_component_frontness_restore_min_mask_fit": LEFT_COMPONENT_RESTORE_MIN_MASK_FIT,
         "left_component_frontness_restore_frontness": LEFT_COMPONENT_RESTORE_FRONTNESS,
     }
+    adaptive_clearance_stats = {}
+    loop_junction_stats = {}
 
     if PATH_MODE == "skeleton_branch_single_profile":
         front_points, segment_lit_flags, depth_values, centerline_strokes = centerline_path_to_front_mm(
@@ -2078,12 +2317,22 @@ def main():
             segment_lit_flags,
             depth_values,
         )
+        front_points, segment_lit_flags, depth_values, loop_junction_stats = smooth_closed_loop_junction(
+            front_points,
+            segment_lit_flags,
+            depth_values,
+        )
         front_points, segment_lit_flags, depth_values = smooth_sinuous_closed_loop(
             front_points,
             segment_lit_flags,
             depth_values,
         )
         front_points, segment_lit_flags, depth_values = smooth_curvature_spikes(
+            front_points,
+            segment_lit_flags,
+            depth_values,
+        )
+        depth_values, adaptive_clearance_stats = adaptive_tangle_clearance(
             front_points,
             segment_lit_flags,
             depth_values,
@@ -2210,6 +2459,8 @@ def main():
     }
     stats.update(backstage_stats)
     stats.update(left_component_restore_stats)
+    stats.update(adaptive_clearance_stats)
+    stats.update(loop_junction_stats)
     output_path = write_path_json(
         project_root, image_path, points, projection_targets, led_flags, mask_fit_fractions, stats
     )

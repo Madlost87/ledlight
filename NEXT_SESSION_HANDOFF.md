@@ -4,10 +4,10 @@
 
 - Repository: `/home/denny/ANAMORPHIC_LAMP`
 - Remote: `https://github.com/Madlost87/ledlight.git`
-- Last pushed commit: `3029683 Document backstage connector checkpoint`
-- Current working tree has uncommitted changes from the backstage sculptural
-  pass, regenerated Blender file, regenerated debug/export outputs, and updated
-  documentation.
+- Last pushed commit: `b1e5f01 Add target config and restore readable first letter`
+- Current working tree has uncommitted changes for the clearance hotspot debug
+  visualizer, the adaptive tangle-clearance solver, regenerated Blender file,
+  regenerated outputs, and updated documentation.
 
 ## Important Design Feedback
 
@@ -43,6 +43,38 @@ only modestly and made torsion/curvature harsher, so it is disabled now
 (`final_loop_clearance_cycles: 0`). The next clearance solver should be local
 and zone-aware.
 
+The validation step now creates `AL_CLEARANCE_HOTSPOTS` in the Blender debug
+collection. It visualizes the 80 closest self-clearance conflicts with red wire
+segments and connector lines, using the same segment-to-segment distance logic
+as the validation report. This is intentionally diagnostic only: it does not
+change geometry or camera readability.
+
+The first local clearance solver is now active. It tries smooth cyclic depth
+windows around measured hotspot bins and keeps only changes that reduce the
+collision energy. This cut exact segment collisions from `2514` to `1536`
+without changing the camera score or leaving the lamp volume. It is not yet a
+manufacturing solution; the new side/three-quarter shape needs visual approval
+before further optimization.
+
+After visual feedback that the curves were still too tight, the tangle was
+relaxed: fewer turns per connector, wider side/vertical sway, broader depth
+corrections, and a dedicated cyclic seam smoother. The seam direction change
+now drops from `164.47 deg` before local smoothing to `6.95 deg` after it.
+Orientation frames are also closed cyclically and distribute their residual
+rotation around the complete loop.
+
+`scripts/08_optimizer.py` is now a real geometry stage. It moves high-curvature
+points only along camera rays, rejects changes that fail to lower robust
+curvature energy, and enforces a `2%` point-clearance tolerance. `run_all.py`
+runs initial frames/transition analysis, applies the optimizer, then regenerates
+the final frames and transition data used by the body and LED previews.
+
+Minimum bend radius is now enforced by validation. Final curvature is split
+into readable, transition, and hidden zones, and the 80 worst points are shown
+by the yellow `AL_CURVATURE_HOTSPOTS` object. Clearance conflicts remain in the
+red `AL_CLEARANCE_HOTSPOTS` object. Both debug overlays are hidden by default in
+the saved Blender file.
+
 ## Target Image Automation
 
 Target selection now lives in `input/target_config.json`.
@@ -75,38 +107,50 @@ manually into individual scripts.
 
 ## Current Generated Baseline
 
-Structured tangle cloud pass metrics:
+Geometry-first broad-tangle metrics:
 
-- Lamp volume: `610 x 650 x 430 mm`
-- Path points: `2191`
-- Path length: `6296.44 mm`
-- Camera visual score: `0.842`
-- Camera coverage: `0.893`
-- Camera precision: `0.919`
-- Camera IoU: `0.828`
-- Overdraw: `0.081`
-- Left component restore nodes: `114`
-- Per-letter coverage: `L 0.886`, `O 0.930`, `V 0.880`, `E 0.866`
+- Lamp volume: `1090 x 1080 x 900 mm`
+- Target width: `370 mm`
+- Maximum sculptural depth: `496.8 mm`
+- Path points: `2525`
+- Path length: `7775.04 mm`
+- Camera visual score: `0.834`
+- Camera coverage: `0.880`
+- Camera precision: `0.928`
+- Camera IoU: `0.824`
+- Overdraw: `0.072`
 - Out of bounds points: `0`
-- Clearance violations: `2514`
-- Minimum non-local clearance: `0.352 mm`
-- Maximum segment length: `5.40 mm`
-- Max twist: `48.70 deg`
-- P95 twist: `12.39 deg`
-- Max curvature: `11.645 1/mm`
-- P95 curvature: `0.097 1/mm`
+- Clearance violations: `277`
+- Minimum non-local clearance: `1.438 mm`
+- Maximum segment length: `6.10 mm`
+- Max twist: `27.33 deg`
+- P95 twist: `6.71 deg`
+- Max curvature: `0.447 1/mm`
+- P95 curvature: `0.050 1/mm`
+- P95 radius: `19.89 mm`
+- Bend-radius target: `180 mm`
+- Bend-radius violations: `859`
+- Readable/hidden P95 radius: `11.33 / 34.71 mm`
 - Profile/LED closed loop: `true`
 - Validation: `False`
+- Clearance debug object: `AL_CLEARANCE_HOTSPOTS`
+- Clearance conflicts visualized: `80`
+- Curvature debug object: `AL_CURVATURE_HOTSPOTS`
+- Curvature hotspots visualized: `80`
 
-This is a better balance than the first dense tangle attempt, but it is not
-physically plausible yet. It needs visual inspection from back/side/three-quarter
-views and then a tangle-aware clearance pass.
+This is the preferred baseline. Autosizing is now `geometry_first`: target scale
+stays tied to the physical LED, while the lamp volume grows from the requested
+bend radius. It is substantially smoother and has far fewer collisions, but it
+is not physically plausible yet.
 
 ## Next Technical Step
 
-Inspect the current `tangle_cloud` result in Blender. If the side view feels
-right, implement a tangle-aware clearance/separation pass in
-`scripts/04_continuous_path.py`.
+Inspect the geometry-first broad-tangle result in Blender from side and
+three-quarter views with both debug overlays hidden first. Then enable the red
+clearance overlay and yellow curvature overlay separately. Confirm that the
+wider turns feel sufficiently soft and that the `L` remains readable. Then
+separate the remaining collision cluster around nodes `1100-1399` using broad
+depth windows rather than local sharp pushes.
 
 Recommended approach:
 
@@ -121,7 +165,7 @@ Recommended approach:
 
 Initial parameter direction:
 
-- Keep the compact tangle shape.
+- Keep the broad tangle shape and geometry-first volume.
 - Do not reintroduce large perimeter arcs.
 - Use rear depth between roughly `45%` and `95%` of max sculptural depth.
 - Keep camera visual score above `0.75`.
@@ -138,7 +182,7 @@ blender --background blender/anamorphic_lamp.blend --python scripts/run_all.py
 Compile changed Python scripts:
 
 ```bash
-python3 -m py_compile scripts/00_autosize_config.py scripts/04_continuous_path.py scripts/05_orientation_frames.py scripts/09_validation.py scripts/11_led_channel.py
+python3 -m py_compile scripts/00_autosize_config.py scripts/04_continuous_path.py scripts/05_orientation_frames.py scripts/08_optimizer.py scripts/09_validation.py scripts/11_led_channel.py
 ```
 
 Check metrics:
@@ -155,8 +199,8 @@ Do not commit the current state until the user asks for a checkpoint. The user
 is satisfied with the current groviglio direction; the open technical problem is
 physical self-clearance, not the camera read.
 
-Good next commit message after implementing the tangle version:
+Good next commit message after visual approval:
 
 ```text
-Restore left letter readability in tangle profile
+Add adaptive clearance and curvature optimization
 ```

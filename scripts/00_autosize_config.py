@@ -9,7 +9,8 @@ from al_config import load_target_config, target_output_name
 
 LED_WIDTH_MM = 10.0
 LED_THICKNESS_MM = 3.0
-SCALE_MODE = "balanced"
+MIN_BEND_RADIUS_MM = 180.0
+SCALE_MODE = "geometry_first"
 
 
 def get_project_root():
@@ -111,23 +112,44 @@ def autosize(analysis, target_config):
     fill_ratio = analysis["fill_ratio_in_bbox"]
     component_count = analysis["component_count"]
 
-    mode_scale = {"compact": 0.92, "balanced": 1.0, "sculptural": 1.12}.get(SCALE_MODE, 1.0)
+    mode_scale = {
+        "compact": 0.92,
+        "balanced": 1.0,
+        "sculptural": 1.12,
+        "geometry_first": 1.0,
+    }.get(SCALE_MODE, 1.0)
     density_extra = max(0.0, fill_ratio - 0.30) * 90.0
     component_extra = max(0, component_count - 1) * 10.0
     aspect_extra = max(0.0, 2.1 - bbox_aspect) * 18.0
-    target_width = (34.0 * LED_WIDTH_MM + density_extra + component_extra + aspect_extra) * mode_scale
-    target_width = max(340.0, min(460.0, round(target_width / 10.0) * 10.0))
+    content_width = (
+        34.0 * LED_WIDTH_MM + density_extra + component_extra + aspect_extra
+    ) * mode_scale
+    if SCALE_MODE == "geometry_first":
+        # Preserve the LED-to-artwork ratio that makes the target readable.
+        # Bend radius drives the surrounding 3D volume instead of enlarging
+        # the artwork and leaving a physically thin LED unable to fill it.
+        target_width = max(340.0, content_width)
+    else:
+        target_width = max(340.0, min(460.0, content_width))
+    target_width = round(target_width / 10.0) * 10.0
     target_height = target_width * aspect
 
-    lamp_width = round(max(target_width * 1.65, target_width + 180.0) / 10.0) * 10.0
-    lamp_depth = round(max(target_width * 1.75, 640.0) / 10.0) * 10.0
-    lamp_height = round(max(target_height + 245.0, 430.0) / 10.0) * 10.0
-    base_diameter = round(max(165.0, lamp_width * 0.48) / 5.0) * 5.0
+    lamp_width = round(
+        max(target_width * 1.65, target_width + MIN_BEND_RADIUS_MM * 4.0) / 10.0
+    ) * 10.0
+    lamp_depth = round(
+        max(target_width * 1.75, MIN_BEND_RADIUS_MM * 6.0) / 10.0
+    ) * 10.0
+    lamp_height = round(
+        max(target_height + MIN_BEND_RADIUS_MM * 4.0, MIN_BEND_RADIUS_MM * 5.0)
+        / 10.0
+    ) * 10.0
+    base_diameter = round(max(165.0, lamp_width * 0.42) / 5.0) * 5.0
     camera_distance = round(max(950.0, target_width * 3.5) / 10.0) * 10.0
-    camera_height = round((target_height * 0.5 + 95.0) / 5.0) * 5.0
-    target_z_center = round((35.0 + target_height * 0.5 + 85.0) / 5.0) * 5.0
+    target_z_center = round((lamp_height * 0.5) / 5.0) * 5.0
+    camera_height = target_z_center
 
-    depth_max = min(lamp_depth * 0.46, 300.0)
+    depth_max = lamp_depth * 0.46
     lanes = [-1.0, -0.72, -0.46, -0.20, 0.08, 0.36, 0.68, 1.0]
     depth_lanes = [round(depth_max * lane, 1) for lane in lanes]
 
@@ -166,15 +188,19 @@ def autosize(analysis, target_config):
         "planner": {
             "centerline_min_stroke_mm": max(20.0, LED_WIDTH_MM * 2.0),
             "centerline_max_strokes": 9,
-            "min_bend_radius_mm": 180.0,
-            "twist_length_for_90_deg_mm": 520.0,
-            "connector_escape_margin_mm": 35.0,
-            "backstage_connector_samples": 112,
-            "backstage_side_sway_mm": round(max(target_width * 0.34, 115.0) / 5.0) * 5.0,
-            "backstage_vertical_sway_mm": round(max(target_height * 0.52, 95.0) / 5.0) * 5.0,
+            "min_bend_radius_mm": MIN_BEND_RADIUS_MM,
+            "twist_length_for_90_deg_mm": max(520.0, MIN_BEND_RADIUS_MM * 3.0),
+            "connector_escape_margin_mm": max(35.0, MIN_BEND_RADIUS_MM * 0.25),
+            "backstage_connector_samples": 160,
+            "backstage_side_sway_mm": round(
+                max(target_width * 0.39, MIN_BEND_RADIUS_MM * 1.4) / 5.0
+            ) * 5.0,
+            "backstage_vertical_sway_mm": round(
+                max(target_height * 0.62, MIN_BEND_RADIUS_MM * 1.2) / 5.0
+            ) * 5.0,
             "backstage_depth_bias": 0.82,
             "backstage_depth_swing": 0.14,
-            "backstage_tangle_loops": 2,
+            "backstage_tangle_loops": 1,
             "closed_loop": True,
         },
     }

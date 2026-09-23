@@ -10,7 +10,7 @@ The initial target is the word `LOVE` as a white image on black background. The 
 - `scripts/00_autosize_config.py` analyzes the target bitmap and derives working dimensions.
 - `scripts/00_setup_scene.py` prepares the Blender scene, collections, camera, reference volume, base, table plane, and secondary light direction.
 - `scripts/01_target_to_path.py` loads the image declared in `input/target_config.json` and creates `AL_TARGET_IMAGE` as a visual debug reference oriented toward `AL_CAMERA_MAIN`.
-- `scripts/02_camera_projection.py` through `scripts/13_camera_evaluation.py` generate projection samples, a continuous path, orientation frames, product previews, LED previews, validation reports, and camera readability diagnostics.
+- `scripts/02_camera_projection.py` through `scripts/13_camera_evaluation.py` generate projection samples, a continuous path, camera-ray curvature optimization, orientation frames, product previews, LED previews, validation reports, and camera readability diagnostics.
 
 No Blender add-on is created yet. The current geometry is a preview/prototype,
 not a final manufacturing mesh.
@@ -56,7 +56,8 @@ The scripts derive the project root from `bpy.data.filepath`, so they do not con
 
 - `LAMP_TYPE = TABLE`
 - `SECONDARY_LIGHT_DIRECTION = DOWN`
-- Autosized lamp volume for the current target: approximately `610 x 650 x 430 mm`
-- Base reference: approximately `295 mm` diameter, `25 mm` height
-- Camera: approximately `(0, -1300, 190) mm`
+- Autosizing mode: `geometry_first` (successful geometry has priority over bounding box)
+- Autosized lamp volume for the current target: approximately `1090 x 1080 x 900 mm`
+- Base reference: approximately `460 mm` diameter, `25 mm` height
+- Camera: approximately `(0, -1300, 450) mm`
 - Target physical width: approximately `370 mm`

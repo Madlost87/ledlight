@@ -1,6 +1,6 @@
 {
   "source": "ANAMORPHIC_LAMP scripts/00_autosize_config.py",
-  "scale_mode": "balanced",
+  "scale_mode": "geometry_first",
   "target_id": "LOVE",
   "target_image_name": "target_LOVE.png",
   "analysis": {
@@ -25,46 +25,46 @@
   "target": {
     "width_mm": 370.0,
     "height_mm": 185.0,
-    "z_center_mm": 210.0,
+    "z_center_mm": 450.0,
     "x_scale": 0.96,
     "z_scale": 0.96
   },
   "lamp": {
-    "width_mm": 610.0,
-    "depth_mm": 650.0,
-    "height_mm": 430.0,
-    "base_diameter_mm": 295.0,
+    "width_mm": 1090.0,
+    "depth_mm": 1080.0,
+    "height_mm": 900.0,
+    "base_diameter_mm": 460.0,
     "base_height_mm": 25.0,
     "profile_width_mm": 15.0,
     "profile_height_mm": 8.0,
-    "max_sculptural_depth_mm": 299.0,
+    "max_sculptural_depth_mm": 496.8,
     "depth_lanes_mm": [
-      -299.0,
-      -215.3,
-      -137.5,
-      -59.8,
-      23.9,
-      107.6,
-      203.3,
-      299.0
+      -496.8,
+      -357.7,
+      -228.5,
+      -99.4,
+      39.7,
+      178.8,
+      337.8,
+      496.8
     ]
   },
   "camera": {
     "distance_mm": 1300.0,
-    "height_mm": 190.0
+    "height_mm": 450.0
   },
   "planner": {
     "centerline_min_stroke_mm": 20.0,
     "centerline_max_strokes": 9,
     "min_bend_radius_mm": 180.0,
-    "twist_length_for_90_deg_mm": 520.0,
-    "connector_escape_margin_mm": 35.0,
-    "backstage_connector_samples": 112,
-    "backstage_side_sway_mm": 125.0,
-    "backstage_vertical_sway_mm": 95.0,
+    "twist_length_for_90_deg_mm": 540.0,
+    "connector_escape_margin_mm": 45.0,
+    "backstage_connector_samples": 160,
+    "backstage_side_sway_mm": 250.0,
+    "backstage_vertical_sway_mm": 215.0,
     "backstage_depth_bias": 0.82,
     "backstage_depth_swing": 0.14,
-    "backstage_tangle_loops": 2,
+    "backstage_tangle_loops": 1,
     "closed_loop": true
   }
 }
